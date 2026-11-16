@@ -1,0 +1,16 @@
+greensummit-v2
+tree 7621cc5d0ef61881e94c66bf16e08c056e8c6fc6
+gates ci-fmt ci-clippy ci-shellcheck
+platform x86_64-linux
+input ci-fmt 9a131663b1584598a752823b1747d8b070d18d60
+input ci-clippy c9897adae9b039d6cab420841f165c8c89d120ec
+input ci-shellcheck b512dd0cafef4989b0db7f83492d8ddd23f3bf75
+canon a6e8c0e572d57159e0c06a774a4f9518416ca6ac
+greengate attest-sign
+
+-----BEGIN SSH SIGNATURE-----
+U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgXgkkM9Ogr4XOuBmQ3r30uyjiP8
+aHsHBNrVvskb9KzzgAAAALZ3JlZW5zdW1taXQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3No
+LWVkMjU1MTkAAABA7bf5ArYF7Ed0MbbT/NCYFyVsiOh0MTaA5HRmJu9QbuTJ7gpszCe/pB
+3OHEBTYB+2OmhXGEPtmLaaKW7KJxCoBg==
+-----END SSH SIGNATURE-----
