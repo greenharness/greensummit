@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 2.0.0
+
+- **BREAKING: git-attest is renamed greensummit** (decisions ADR-0073).
+  The crate, library and binary are `greensummit`, the repository is
+  `greenharness/greensummit`, and the actions are
+  `greenharness/greensummit@v2` and `greenharness/greensummit/sign@v2`. The
+  `git-attest` crate on crates.io is left as it is.
+- **BREAKING: the wire names are cut to one set, with no fallback read.**
+  Header `greensummit-v2`, notes refs `greensummit` and `greensummit-inputs`,
+  SSH namespace `greensummit`, key domains `greensummit-input` and
+  `greensummit-canon`, unpushed blocks under `refs/notes/greensummit-local/`,
+  and the spec file `.github/greensummit-inputs` (was `attest-inputs`). Notes
+  filed under `greengate-attest` or `amont-attest` are ignored, so the gates
+  run once and a re-push re-signs them under the new names. The `LEGACY` and
+  `GREEN` name sets, the `legacy_notes` and `legacy_inputs_notes` action
+  outputs and their `--github-output` lines are removed; `format::SUMMIT` is
+  the one set and `format::WRITE` equals it. `allowed_signers` lines must list
+  `greensummit`.
+- **BREAKING: environment variables** `ATTEST_*` are `GREENSUMMIT_*`
+  (`ATTEST_GIT_ATTEST` is `GREENSUMMIT_BIN`); the secret name
+  `ATTEST_SIGNING_KEY` is unchanged. Printed messages start `greensummit:`
+  (was `attest:`).
+
 ## 1.10.0
 
 - **Writers switch to the `greengate-attest` names** (decisions ADR-0068,

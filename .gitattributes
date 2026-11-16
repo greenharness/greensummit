@@ -3,3 +3,6 @@
 # line endings (Git for Windows defaults core.autocrlf to true) would hand
 # every reader CRLF records the strict format refuses.
 tests/vectors/*.txt -text
+
+# The old-name fixture note is compared byte for byte, like the vectors above.
+tests/fixtures/*.note -text

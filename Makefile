@@ -20,7 +20,7 @@ test: ## unit tests
 	cargo test
 
 # Both implementations, against the same fixtures. This is the target that
-# matters: it is the only thing keeping verify.sh and git-attest from drifting.
+# matters: it is the only thing keeping verify.sh and greensummit from drifting.
 #
 # `legacy` is a NEGATIVE control and is expected to FAIL — it is the verifier
 # this project replaces, and a fixture suite it passed would be testing
@@ -29,8 +29,8 @@ conformance: ## run the fixtures against both implementations
 	cargo build --release
 	@echo "--- verify.sh ---"
 	@./tests/conformance.sh "bash $(CURDIR)/verify.sh --quiet"
-	@echo "--- git-attest ---"
-	@./tests/conformance.sh "$(CURDIR)/target/release/git-attest covered"
+	@echo "--- greensummit ---"
+	@./tests/conformance.sh "$(CURDIR)/target/release/greensummit covered"
 	@echo "--- legacy.sh (negative control: MUST fail) ---"
 	@if SKIP_JSON=1 ./tests/conformance.sh "bash $(CURDIR)/tests/legacy.sh" > /dev/null 2>&1; then \
 	    echo "  ✗ legacy.sh PASSED the suite — the fixtures no longer prove anything"; \
@@ -84,20 +84,20 @@ compat: ## prove released verifiers degrade safely on newer notes
 	@./tests/compat-fields.sh "$(CURDIR)/target/compat/v1.5.1/target/release/git-attest covered" fp15
 	@echo "--- input lines: current verify.sh ---"
 	@./tests/compat-fields.sh "bash $(CURDIR)/verify.sh --quiet" new
-	@echo "--- input lines: current git-attest ---"
+	@echo "--- input lines: current greensummit ---"
 	@cargo build -q --release
-	@./tests/compat-fields.sh "$(CURDIR)/target/release/git-attest covered" new
+	@./tests/compat-fields.sh "$(CURDIR)/target/release/greensummit covered" new
 
-sign-test: ## the producer's fixtures (sign/sign.sh and git-attest sign against a bare origin), read back by both verifiers
+sign-test: ## the producer's fixtures (sign/sign.sh and greensummit sign against a bare origin), read back by both verifiers
 	cargo build --release
 	@echo "--- sign/sign.sh, read by verify.sh ---"
-	@ATTEST_GIT_ATTEST="$(CURDIR)/target/release/git-attest" ./tests/sign.sh
-	@echo "--- sign/sign.sh, read by git-attest ---"
-	@ATTEST_GIT_ATTEST="$(CURDIR)/target/release/git-attest" ATTEST_IMPL="$(CURDIR)/target/release/git-attest covered" ./tests/sign.sh
-	@echo "--- git-attest sign, read by verify.sh ---"
-	@ATTEST_GIT_ATTEST="$(CURDIR)/target/release/git-attest" ATTEST_SIGN="$(CURDIR)/target/release/git-attest sign" ./tests/sign.sh
-	@echo "--- git-attest sign, read by git-attest ---"
-	@ATTEST_GIT_ATTEST="$(CURDIR)/target/release/git-attest" ATTEST_SIGN="$(CURDIR)/target/release/git-attest sign" ATTEST_IMPL="$(CURDIR)/target/release/git-attest covered" ./tests/sign.sh
+	@GREENSUMMIT_BIN="$(CURDIR)/target/release/greensummit" ./tests/sign.sh
+	@echo "--- sign/sign.sh, read by greensummit ---"
+	@GREENSUMMIT_BIN="$(CURDIR)/target/release/greensummit" GREENSUMMIT_IMPL="$(CURDIR)/target/release/greensummit covered" ./tests/sign.sh
+	@echo "--- greensummit sign, read by verify.sh ---"
+	@GREENSUMMIT_BIN="$(CURDIR)/target/release/greensummit" GREENSUMMIT_SIGN="$(CURDIR)/target/release/greensummit sign" ./tests/sign.sh
+	@echo "--- greensummit sign, read by greensummit ---"
+	@GREENSUMMIT_BIN="$(CURDIR)/target/release/greensummit" GREENSUMMIT_SIGN="$(CURDIR)/target/release/greensummit sign" GREENSUMMIT_IMPL="$(CURDIR)/target/release/greensummit covered" ./tests/sign.sh
 
 fetch-test: ## fetch.sh against a release served from file://, RELEASE's shape, the deprecation lines
 	@./tests/fetch.sh

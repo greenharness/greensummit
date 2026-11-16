@@ -2,7 +2,7 @@
 # Every flag a parser accepts appears in that program's --help.
 #
 # The help of verify.sh and sign.sh is a line range of their header comment,
-# and git-attest's is a string beside its parser: all three drift the moment a
+# and greensummit's is a string beside its parser: all three drift the moment a
 # flag is added and the text is not. A flag nobody can discover is one nobody
 # uses — or, worse, one somebody guesses wrong.
 set -u
@@ -11,7 +11,7 @@ rc=0
 
 # The `--flag)` and `--a|--b)` arms of a shell script's argument loop.
 shell_flags() { grep -oE '^ +(-[a-z]\|)?--[a-z-]+(\|--[a-z-]+)*\)' "$1" | tr -d ' )' | tr '|' '\n' | grep '^--' | grep -vx -- --help; }
-# The "--flag" string patterns of a git-attest `parse`: the verbs' in
+# The "--flag" string patterns of a greensummit `parse`: the verbs' in
 # src/main.rs, `sign`'s in src/cli_sign.rs.
 rust_flags() { sed -n '/^fn parse/,/^}/p' "$1" | grep -oE '"--[a-z-]+"' | tr -d '"'; }
 
@@ -32,10 +32,10 @@ check sign/sign.sh "$(bash sign/sign.sh --help < /dev/null)" $(shell_flags sign/
 # Always built: an existing binary may predate the parser being checked.
 if cargo build -q --release; then
     # shellcheck disable=SC2046
-    check git-attest "$(target/release/git-attest --help)" $(rust_flags src/main.rs)
+    check greensummit "$(target/release/greensummit --help)" $(rust_flags src/main.rs)
     # shellcheck disable=SC2046
-    check "git-attest sign" "$(target/release/git-attest sign --help)" $(rust_flags src/cli_sign.rs)
+    check "greensummit sign" "$(target/release/greensummit sign --help)" $(rust_flags src/cli_sign.rs)
 else
-    printf 'help-lists-every-flag: cannot build git-attest\n' >&2; rc=1
+    printf 'help-lists-every-flag: cannot build greensummit\n' >&2; rc=1
 fi
 exit "$rc"

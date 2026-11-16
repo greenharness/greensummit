@@ -1,8 +1,7 @@
 //! The attestation format: the payload's fields, the note's blocks, and the
 //! names every producer and verifier shares (SPEC.md, "The note").
 
-/// First token of every payload written (the GREEN name since 1.10.0; see
-/// [`WRITE`]; the LEGACY one is still read). A verifier that does not recognise this
+/// First token of every payload written (see [`WRITE`]). A verifier that does not recognise this
 /// string must treat the note as absent: an unknown version may mean anything,
 /// and "run the tests" is the only safe reading of anything.
 pub const FORMAT: &str = WRITE.format;
@@ -19,7 +18,7 @@ pub const INPUTS_REF: &str = WRITE.inputs_ref;
 /// Where `sign.sh --no-push` keeps blocks that never reached origin, under
 /// `refs/notes/`, prefixed to either ref name above. Origin cannot revoke
 /// them, so a verifier reads them only when asked (`--include-local`).
-pub const LOCAL_PREFIX: &str = "attest-local/";
+pub const LOCAL_PREFIX: &str = "greensummit-local/";
 
 /// The `ssh-keygen -Y` namespace. Namespaces exist so a signature minted for
 /// one purpose cannot be replayed for another; an `allowed_signers` entry
@@ -28,9 +27,8 @@ pub const NAMESPACE: &str = WRITE.namespace;
 
 /// One complete set of the names a signed attestation lives under: its header,
 /// the two notes refs, the SSH namespace, the two fingerprint domains and the
-/// payload's producer-line word. A note is read WHOLE under one set (SPEC.md,
-/// "Names"): its header says which, and the namespace, the domains and the
-/// inputs ref follow, so the two sets never mix inside one note.
+/// payload's producer-line word. Since 2.0.0 there is one set, [`SUMMIT`]
+/// (SPEC.md, "Names"): a note whose header is anything else is absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Names {
     /// First line of every payload.
@@ -49,38 +47,26 @@ pub struct Names {
     pub producer: &'static str,
 }
 
-/// The names notes were written under from 1.0 to 1.9. Still read during the
-/// 30-day window (ADR-0068); removed at the census (2.0.0).
-pub const LEGACY: Names = Names {
-    format: "amont-attest-v2",
-    notes_ref: "amont-attest",
-    inputs_ref: "amont-attest-inputs",
-    namespace: "amont-attest",
-    input_domain: "amont-attest-input",
-    canon_domain: "amont-attest-canon",
-    producer: "amont",
-};
-
-/// The names notes are signed under since 1.10.0. Verifiers read them first
-/// and fall back to [`LEGACY`] (SPEC.md, "Names").
-pub const GREEN: Names = Names {
-    format: "greengate-attest-v2",
-    notes_ref: "greengate-attest",
-    inputs_ref: "greengate-attest-inputs",
-    namespace: "greengate-attest",
-    input_domain: "greengate-attest-input",
-    canon_domain: "greengate-attest-canon",
+/// The one set of names a signed attestation lives under. Notes filed under
+/// any other set (`greengate-attest`, `amont-attest`) are absent to every
+/// reader (SPEC.md, "Names"); there is no fallback read.
+pub const SUMMIT: Names = Names {
+    format: "greensummit-v2",
+    notes_ref: "greensummit",
+    inputs_ref: "greensummit-inputs",
+    namespace: "greensummit",
+    input_domain: "greensummit-input",
+    canon_domain: "greensummit-canon",
     producer: "greengate",
 };
 
 /// The ONE owner of what is written: [`FORMAT`], [`NOTES_REF`],
 /// [`INPUTS_REF`], [`NAMESPACE`], the producer word of [`payload`] and the
 /// set-less functions (`fingerprint::key`, `canon_key`, their preimages,
-/// `notes::sync_mirrors`) all derive from it. [`GREEN`] since 1.10.0 (LEGACY
-/// before), together with the name assignments at the top of `sign/sign.sh`,
-/// held equal to these by `tests/sign.sh`, which reads back what both
-/// signers write.
-pub const WRITE: Names = GREEN;
+/// `notes::sync_mirrors`) all derive from it, together with the name
+/// assignments at the top of `sign/sign.sh`, held equal to these by
+/// `tests/sign.sh`, which reads back what both signers write.
+pub const WRITE: Names = SUMMIT;
 
 /// How many blocks of one note are read. Every block costs two `ssh-keygen`
 /// runs, and the notes ref is writable by anyone with push access.

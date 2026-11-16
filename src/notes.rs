@@ -8,7 +8,7 @@ use crate::git;
 
 /// What became of one notes ref. SPEC.md, "Lookup".
 ///
-/// `refs/notes/{greengate,amont}-attest[-inputs]` are ORIGIN'S MIRROR, and origin is the
+/// `refs/notes/greensummit[-inputs]` are ORIGIN'S MIRROR, and origin is the
 /// only place an attestation can be revoked, so only a mirror that is
 /// origin's ref right now — or a repository with no origin at all, which is
 /// for fixtures and local use — is judged.
@@ -66,7 +66,7 @@ fn drop_mirror(root: &Path, loud: &mut Vec<String>, notes_ref: &str) -> Mirror {
 /// Where fetches land before they become the mirror: outside `refs/notes/`,
 /// one directory per process id, so no notes push or pruning fetch ever
 /// touches them.
-pub(crate) const TMP_NS: &str = "refs/attest-tmp/";
+pub(crate) const TMP_NS: &str = "refs/greensummit-tmp/";
 
 /// Remove the throwaways of runs killed before their cleanup — only those
 /// whose process is gone, so a concurrent run in the same clone keeps its
@@ -169,9 +169,8 @@ impl Synced {
     }
 }
 
-/// [`sync_mirrors`] for one name set's two refs. A verifier syncs each set on
-/// its own, so a set origin does not have (the old one after the census, the
-/// new one before a repository's first green note) is `Deleted`, which judges nothing and
+/// [`sync_mirrors`] for the name set's two refs. A ref origin does not have
+/// (before a repository's first greensummit note) is `Deleted`, which judges nothing and
 /// changes no verdict, never `Unreachable`.
 pub fn sync_mirrors_of(root: &Path, names: &Names) -> Synced {
     // Every line this sync has to say goes into `loud`, returned with the
@@ -460,7 +459,7 @@ pub fn publish(
     log: &mut Vec<String>,
 ) -> Published {
     let full = format!("refs/notes/{notes_ref}");
-    let tref = format!("attest-publish-{}-{notes_ref}", std::process::id());
+    let tref = format!("greensummit-publish-{}-{notes_ref}", std::process::id());
     let tfull = format!("refs/notes/{tref}");
     let mut attempt = 0;
     let outcome = loop {
@@ -554,7 +553,7 @@ pub(crate) fn scrub(stderr: &str) -> String {
 }
 
 /// The same, into the local `notes_ref` only, with no remote involved: what
-/// `sign --no-push` writes under `refs/notes/attest-local/`.
+/// `sign --no-push` writes under `refs/notes/greensummit-local/`.
 pub fn publish_local(
     root: &Path,
     identity: Option<(&str, &str)>,

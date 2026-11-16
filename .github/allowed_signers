@@ -1,2 +1,2 @@
-zougi.fr@gmail.com namespaces="amont-attest,greengate-attest,amont-provenance,greengate-provenance" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO1DryfJsqOHYVvdO1Rbcu0/21FURUHqyvjFieG4wocH amont-attest
-ci@attest.invalid namespaces="amont-attest,greengate-attest" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICEqqlRPHLCWRlRDB+Sdtf1RTPvBTHUgzGWVO3K/FEMF attest-ci
+zougi.fr@gmail.com namespaces="greensummit,amont-provenance,greengate-provenance" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO1DryfJsqOHYVvdO1Rbcu0/21FURUHqyvjFieG4wocH amont-attest
+ci@greensummit.invalid namespaces="greensummit" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF4JJDPToK+FzrgZkN699Lso4j/Gh7BwTa1b7JG/Ss84 ci@greensummit.invalid

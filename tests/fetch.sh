@@ -20,7 +20,7 @@ IMPL=unused
 
 V=9.9.9
 T=test-target
-NAME=git-attest-$V-$T
+NAME=greensummit-$V-$T
 REL=$WORK/rel
 # curl wants file:///C:/... on Windows; `pwd -W` exists only in Git Bash.
 url_of() { (cd "$1" && p=$(pwd -W 2> /dev/null || pwd) && case $p in /*) echo "file://$p" ;; *) echo "file:///$p" ;; esac); }
@@ -33,8 +33,8 @@ sha_of() {
 make_release() { # version-line exit-code
     rm -rf "$REL" && mkdir -p "$REL/v$V" "$WORK/build/$NAME"
     # shellcheck disable=SC2016  # the stub's own $1
-    printf '#!/bin/sh\n[ "$1" = --version ] && echo "%s"\nexit %s\n' "$1" "$2" > "$WORK/build/$NAME/git-attest"
-    chmod +x "$WORK/build/$NAME/git-attest"
+    printf '#!/bin/sh\n[ "$1" = --version ] && echo "%s"\nexit %s\n' "$1" "$2" > "$WORK/build/$NAME/greensummit"
+    chmod +x "$WORK/build/$NAME/greensummit"
     (cd "$WORK/build" && tar czf "$REL/v$V/$NAME.tar.gz" "$NAME")
     rm -rf "$WORK/build"
 }
@@ -45,13 +45,13 @@ write_release() { # sha
 
 CACHE=$WORK/cache
 run_fetch() {
-    ATTEST_RELEASE_FILE=$WORK/RELEASE ATTEST_RELEASE_URL="$(url_of "$WORK")/rel" \
-        ATTEST_TARGET=$T ATTEST_CACHE=$CACHE RUNNER_TEMP=$WORK \
+    GREENSUMMIT_RELEASE_FILE=$WORK/RELEASE GREENSUMMIT_RELEASE_URL="$(url_of "$WORK")/rel" \
+        GREENSUMMIT_TARGET=$T GREENSUMMIT_CACHE=$CACHE RUNNER_TEMP=$WORK \
         bash "$FETCH" > "$WORK/out" 2> "$WORK/err"
 }
 
 expect_ok() { # name
-    if run_fetch && [ -x "$(cat "$WORK/out")" ] && [ "$("$(cat "$WORK/out")" --version)" = "git-attest $V" ]; then
+    if run_fetch && [ -x "$(cat "$WORK/out")" ] && [ "$("$(cat "$WORK/out")" --version)" = "greensummit $V" ]; then
         ok "$1"
     else
         fail "$1" "stdout: $(cat "$WORK/out") stderr: $(cat "$WORK/err")"
@@ -65,7 +65,7 @@ expect_fail() { # name reason-substring
         fail "$1" "a failure named a binary: $(cat "$WORK/out")"
     else
         case "$(tail -n 1 "$WORK/err")" in
-            "attest: "*"$2"*) ok "$1" ;;
+            "greensummit: "*"$2"*) ok "$1" ;;
             *) fail "$1" "last stderr line: $(tail -n 1 "$WORK/err")" ;;
         esac
     fi
@@ -73,7 +73,7 @@ expect_fail() { # name reason-substring
 
 echo "--- fetch.sh ---"
 
-make_release "git-attest $V" 0
+make_release "greensummit $V" 0
 GOOD=$(sha_of "$REL/v$V/$NAME.tar.gz")
 write_release "$GOOD"
 expect_ok "a pinned archive downloads, checks and runs"
@@ -96,7 +96,7 @@ expect_fail "an archive whose digest is not RELEASE's is refused" "RELEASE pins 
 if [ -d "$CACHE" ] && [ -n "$(ls -A "$CACHE")" ]; then fail "refused archive cached" "$(ls -R "$CACHE")"; else ok "and is never cached"; fi
 
 printf 'version %s\nother-target %s\n' "$V" "$GOOD" > "$WORK/RELEASE"
-expect_fail "a target RELEASE does not pin has no binary" "pins no git-attest $V archive for $T"
+expect_fail "a target RELEASE does not pin has no binary" "pins no greensummit $V archive for $T"
 
 write_release "not-a-digest"
 expect_fail "a malformed digest is refused" "is not a sha256"
@@ -111,13 +111,13 @@ write_release "$GOOD"
 rm -f "$REL/v$V/$NAME.tar.gz"
 expect_fail "a release without the asset is a failed download" "could not download"
 
-make_release "git-attest $V" 1
+make_release "greensummit $V" 1
 rm -rf "$CACHE"; write_release "$(sha_of "$REL/v$V/$NAME.tar.gz")"
 expect_fail "a binary that will not run is refused" "does not run here"
 
-make_release "git-attest 0.0.1" 0
+make_release "greensummit 0.0.1" 0
 rm -rf "$CACHE"; write_release "$(sha_of "$REL/v$V/$NAME.tar.gz")"
-expect_fail "a binary of another version is refused" "not git-attest $V"
+expect_fail "a binary of another version is refused" "not greensummit $V"
 
 echo "--- RELEASE ---"
 
@@ -134,15 +134,15 @@ echo "--- deprecation ---"
 
 R=$WORK/repo
 git init -q "$R" && git -C "$R" -c core.hooksPath=/dev/null -c user.email=t@example.org -c user.name=t commit -q --allow-empty -m init
-unset ATTEST_NO_DEPRECATION
+unset GREENSUMMIT_NO_DEPRECATION
 quiet_out=$(cd "$R" && GITHUB_ACTIONS='' bash "$HERE/verify.sh" --quiet 2> "$WORK/err")
-if grep -q '^attest: verify.sh is deprecated' "$WORK/err"; then ok "verify.sh says it is deprecated, even under --quiet"; else fail "verify.sh deprecation" "$(cat "$WORK/err")"; fi
+if grep -q '^greensummit: verify.sh is deprecated' "$WORK/err"; then ok "verify.sh says it is deprecated, even under --quiet"; else fail "verify.sh deprecation" "$(cat "$WORK/err")"; fi
 (cd "$R" && GITHUB_ACTIONS=true bash "$HERE/verify.sh" --quiet > /dev/null 2> "$WORK/err")
-if grep -q '^::warning title=attest::verify.sh is deprecated' "$WORK/err"; then ok "as a warning annotation under GitHub Actions"; else fail "verify.sh annotation" "$(cat "$WORK/err")"; fi
-plain_out=$(cd "$R" && ATTEST_NO_DEPRECATION=1 bash "$HERE/verify.sh" --quiet 2> "$WORK/err")
-if [ ! -s "$WORK/err" ] && [ "$quiet_out" = "$plain_out" ]; then ok "ATTEST_NO_DEPRECATION silences it, and stdout is the same either way"; else fail "verify.sh silenced" "$(cat "$WORK/err")"; fi
+if grep -q '^::warning title=greensummit::verify.sh is deprecated' "$WORK/err"; then ok "as a warning annotation under GitHub Actions"; else fail "verify.sh annotation" "$(cat "$WORK/err")"; fi
+plain_out=$(cd "$R" && GREENSUMMIT_NO_DEPRECATION=1 bash "$HERE/verify.sh" --quiet 2> "$WORK/err")
+if [ ! -s "$WORK/err" ] && [ "$quiet_out" = "$plain_out" ]; then ok "GREENSUMMIT_NO_DEPRECATION silences it, and stdout is the same either way"; else fail "verify.sh silenced" "$(cat "$WORK/err")"; fi
 sign_out=$(cd "$R" && GITHUB_ACTIONS='' bash "$HERE/sign/sign.sh" --gates x --github-output < /dev/null 2> "$WORK/err")
-if grep -q '^attest: sign.sh is deprecated' "$WORK/err"; then ok "sign.sh says it is deprecated"; else fail "sign.sh deprecation" "$(cat "$WORK/err")"; fi
+if grep -q '^greensummit: sign.sh is deprecated' "$WORK/err"; then ok "sign.sh says it is deprecated"; else fail "sign.sh deprecation" "$(cat "$WORK/err")"; fi
 case $sign_out in status=no-key*) ok "and its stdout is unchanged" ;; *) fail "sign.sh stdout" "$sign_out" ;; esac
 
 summary

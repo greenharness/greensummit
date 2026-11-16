@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Print the path of the git-attest binary that RELEASE pins, for this runner.
+# Print the path of the greensummit binary that RELEASE pins, for this runner.
 #
 #   fetch.sh
 #
@@ -10,24 +10,24 @@
 # What it does, in order: map this runner to a release target (Linux x86_64
 # takes the static musl build, so an old glibc or an Alpine `container:` job
 # still runs it); take an archive from the cache, or download
-# git-attest-<version>-<target>.tar.gz from that release; refuse it unless its
+# greensummit-<version>-<target>.tar.gz from that release; refuse it unless its
 # sha256 is the one RELEASE names; extract it into a private directory; prove
 # the binary runs. The digest is checked on a private COPY of the archive,
 # after every cache hit as after every download, and only that copy is
 # extracted: a cache on a persistent runner is never trusted, only reused.
 #
 # Exit 0 and one line on stdout, the binary's path. Exit 1 on any failure,
-# whose LAST line on stderr is `attest: <reason>`, ready to quote in a
+# whose LAST line on stderr is `greensummit: <reason>`, ready to quote in a
 # warning.
 #
-# Test-only overrides (tests/fetch.sh): ATTEST_RELEASE_FILE (default: RELEASE
-# beside this script), ATTEST_RELEASE_URL (the download base, default
-# https://github.com/fredericrous/attest/releases/download), ATTEST_TARGET,
-# ATTEST_CACHE (default: $RUNNER_TOOL_CACHE/git-attest).
+# Test-only overrides (tests/fetch.sh): GREENSUMMIT_RELEASE_FILE (default: RELEASE
+# beside this script), GREENSUMMIT_RELEASE_URL (the download base, default
+# https://github.com/greenharness/greensummit/releases/download), GREENSUMMIT_TARGET,
+# GREENSUMMIT_CACHE (default: $RUNNER_TOOL_CACHE/greensummit).
 set -uf
 
 fail() {
-    printf 'attest: %s\n' "$1" >&2
+    printf 'greensummit: %s\n' "$1" >&2
     exit 1
 }
 
@@ -72,17 +72,17 @@ target() {
 }
 
 here=$(cd "$(dirname "$0")" && pwd)
-release=${ATTEST_RELEASE_FILE:-$here/RELEASE}
+release=${GREENSUMMIT_RELEASE_FILE:-$here/RELEASE}
 [ -r "$release" ] || fail "no RELEASE file at $release"
 
 version=$(awk '$1 == "version" { print $2; exit }' "$release")
 printf '%s\n' "$version" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' \
     || fail "RELEASE names no usable version: '$version'"
 
-tgt=${ATTEST_TARGET:-$(target)}
-[ -n "$tgt" ] || fail "no git-attest release for $(uname -s) $(uname -m)"
+tgt=${GREENSUMMIT_TARGET:-$(target)}
+[ -n "$tgt" ] || fail "no greensummit release for $(uname -s) $(uname -m)"
 want=$(awk -v t="$tgt" '$1 == t { print $2; exit }' "$release")
-[ -n "$want" ] || fail "RELEASE pins no git-attest $version archive for $tgt"
+[ -n "$want" ] || fail "RELEASE pins no greensummit $version archive for $tgt"
 printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}' \
     || fail "RELEASE's sha256 for $tgt is not a sha256: '$want'"
 
@@ -90,21 +90,21 @@ command -v curl > /dev/null 2>&1 || fail "curl is not installed"
 command -v sha256sum > /dev/null 2>&1 || command -v shasum > /dev/null 2>&1 \
     || fail "neither sha256sum nor shasum is installed"
 
-name=git-attest-$version-$tgt
-base=${ATTEST_RELEASE_URL:-https://github.com/fredericrous/attest/releases/download}
+name=greensummit-$version-$tgt
+base=${GREENSUMMIT_RELEASE_URL:-https://github.com/greenharness/greensummit/releases/download}
 url=$base/v$version/$name.tar.gz
 tmp=$(posix "${RUNNER_TEMP:-${TMPDIR:-/tmp}}")
-cache=$(posix "${ATTEST_CACHE:-${RUNNER_TOOL_CACHE:-$tmp}/git-attest}")/$version-$tgt-$want
+cache=$(posix "${GREENSUMMIT_CACHE:-${RUNNER_TOOL_CACHE:-$tmp}/greensummit}")/$version-$tgt-$want
 cached=$cache/$name.tar.gz
 
-work=$(mktemp -d "$tmp/git-attest.XXXXXX") || fail "cannot create a directory under $tmp"
+work=$(mktemp -d "$tmp/greensummit.XXXXXX") || fail "cannot create a directory under $tmp"
 copy=$work/$name.tar.gz
 
 if [ -f "$cached" ] && cp "$cached" "$copy" 2> /dev/null && [ "$(sha256 "$copy")" = "$want" ]; then
     :
 else
     if [ -f "$cached" ]; then
-        printf 'attest: the cached %s.tar.gz does not match RELEASE; downloading it again\n' "$name" >&2
+        printf 'greensummit: the cached %s.tar.gz does not match RELEASE; downloading it again\n' "$name" >&2
         rm -f "$cached"
     fi
     curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 120 -o "$copy" "$url" \
@@ -122,9 +122,9 @@ fi
 # From stdin: GNU tar reads `C:/...` as a remote host, and a relative name
 # sidesteps every path dialect at once.
 (cd "$work" && tar xzf - < "$copy") || fail "could not extract $name.tar.gz"
-bin=$work/$name/git-attest
+bin=$work/$name/greensummit
 [ -f "$bin.exe" ] && bin=$bin.exe
-[ -f "$bin" ] || fail "$name.tar.gz holds no git-attest binary"
-ran=$("$bin" --version 2>&1) || fail "the git-attest $version binary does not run here: $ran"
-[ "$ran" = "git-attest $version" ] || fail "the binary says '$ran', not git-attest $version"
+[ -f "$bin" ] || fail "$name.tar.gz holds no greensummit binary"
+ran=$("$bin" --version 2>&1) || fail "the greensummit $version binary does not run here: $ran"
+[ "$ran" = "greensummit $version" ] || fail "the binary says '$ran', not greensummit $version"
 printf '%s\n' "$bin"

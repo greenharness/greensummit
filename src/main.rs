@@ -1,4 +1,4 @@
-//! `git-attest` — read the attestation covering the tree checked out here.
+//! `greensummit` — read the attestation covering the tree checked out here.
 //!
 //! The actions in this repository run this binary, at the version and digest
 //! `RELEASE` pins, and fall back to `verify.sh` / `sign.sh` when it cannot
@@ -7,18 +7,18 @@
 
 mod cli_sign;
 
-use git_attest::notes::Mirror;
-use git_attest::{format, verify as attest};
+use greensummit::notes::Mirror;
+use greensummit::{format, verify};
 
 const USAGE: &str = "\
-git-attest — what a signed attestation covers for the tree checked out here
+greensummit — what a signed attestation covers for the tree checked out here
 
-  git-attest covered [--signers PATH] [--principal ID] [--platform P|OS|any]
+  greensummit covered [--signers PATH] [--principal ID] [--platform P|OS|any]
                      [--anywhere \"NAMES\"] [--include-local]
                      [--json | --github-output]
-  git-attest explain [same flags]
-  git-attest sign --gates \"NAMES\" [flags] < private-key   (see `git-attest sign --help`)
-  git-attest check-inputs --require GATE... [--tree REV]
+  greensummit explain [same flags]
+  greensummit sign --gates \"NAMES\" [flags] < private-key   (see `greensummit sign --help`)
+  greensummit check-inputs --require GATE... [--tree REV]
 
   covered   print the covered gate names, or nothing. Always exits 0: every
             failure means \"run the tests\", which is the caller's default
@@ -27,7 +27,7 @@ git-attest — what a signed attestation covers for the tree checked out here
   explain   print the same answer with the reasoning that produced it, on
             stderr. Use it when a skip you expected did not happen.
   check-inputs
-            do the named gates declare, in attest-inputs, every file the tree
+            do the named gates declare, in greensummit-inputs, every file the tree
             (default HEAD) tracks? Exit 0 yes, 1 a file is not covered, 2 the
             spec or git cannot answer: a guard that cannot answer fails.
 
@@ -44,22 +44,20 @@ git-attest — what a signed attestation covers for the tree checked out here
                     (formatting, shell lint, secret scanning, dependency
                     audit): a verified attestation from any platform covers
                     them. Never a check that compiles or executes the product.
-  --include-local   also read refs/notes/attest-local/*: blocks signed with
+  --include-local   also read refs/notes/greensummit-local/*: blocks signed with
                     `sign.sh --no-push` that never reached origin, so origin
                     cannot revoke them. Off by default.
   --json            print a JSON array instead of a space-separated list
-  --github-output   print `covered=`, `gates=`, `notes=`, `inputs_notes=`,
-                    `legacy_notes=` and `legacy_inputs_notes=` lines ready
+  --github-output   print `covered=`, `gates=`, `notes=`, and `inputs_notes=` lines ready
                     to append to $GITHUB_OUTPUT
 
-  A committed .github/attest-inputs (or .forgejo/) names the paths each gate
+  A committed .github/greensummit-inputs (or .forgejo/) names the paths each gate
   reads; a gate is then also covered by an attestation of any tree whose
-  declared inputs are identical. refs/notes/greengate-attest[-inputs] and
-  the older refs/notes/amont-attest[-inputs] are origin's mirror: fetched,
-  deleted when origin no longer has them, and not read when origin is
-  configured but cannot be reached. The greengate ref is read first; the
-  amont one only for an object it has no note for. Every verification prints
-  the name it went through (`verified under greengate-attest`).
+  declared inputs are identical. refs/notes/greensummit[-inputs] are
+  origin's mirror: fetched, deleted when origin no longer has them, and not
+  read when origin is configured but cannot be reached. Notes under any
+  other name are absent. Every verification prints
+  the name it went through (`verified under greensummit`).
 ";
 
 #[derive(Default, Debug, PartialEq)]
@@ -154,7 +152,7 @@ fn check_inputs(args: &[String]) -> u8 {
                     i += 1;
                 }
                 None => {
-                    eprintln!("git-attest: --tree needs a value");
+                    eprintln!("greensummit: --tree needs a value");
                     return 2;
                 }
             },
@@ -165,24 +163,24 @@ fn check_inputs(args: &[String]) -> u8 {
                 }
             }
             other => {
-                eprintln!("git-attest: unknown argument {other}");
+                eprintln!("greensummit: unknown argument {other}");
                 return 2;
             }
         }
         i += 1;
     }
     if required.is_empty() {
-        eprintln!("git-attest: check-inputs needs --require <gate>...");
+        eprintln!("greensummit: check-inputs needs --require <gate>...");
         return 2;
     }
     let here = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    match git_attest::spec::check_coverage(&here, &tree, &required) {
+    match greensummit::spec::check_coverage(&here, &tree, &required) {
         Err(e) => {
             eprintln!("{}", e.render(&tree));
             2
         }
         Ok(f) if f.is_empty() => {
-            println!("check-attest-inputs: ok");
+            eprintln!("check-greensummit-inputs: ok");
             0
         }
         Ok(f) => {
@@ -209,14 +207,14 @@ fn run(args: &[String]) -> u8 {
             return 0;
         }
         "-V" | "--version" | "version" => {
-            println!("git-attest {}", env!("CARGO_PKG_VERSION"));
+            println!("greensummit {}", env!("CARGO_PKG_VERSION"));
             return 0;
         }
         "covered" | "explain" => {}
         "sign" => return cli_sign::run(&args[1..]),
         "check-inputs" => return check_inputs(&args[1..]),
         other => {
-            eprintln!("git-attest: unknown subcommand `{other}`");
+            eprintln!("greensummit: unknown subcommand `{other}`");
             eprint!("{USAGE}");
             return 2;
         }
@@ -233,7 +231,7 @@ fn run(args: &[String]) -> u8 {
     } = match parse(&args[1..]) {
         Ok(o) => o,
         Err(m) => {
-            eprintln!("git-attest: {m}");
+            eprintln!("greensummit: {m}");
             eprint!("{USAGE}");
             return 2;
         }
@@ -242,12 +240,11 @@ fn run(args: &[String]) -> u8 {
     // Every early return below is "nothing is covered", printed the same way
     // the covered path prints its answer — so a caller that always parses the
     // output never meets a special case.
-    let done = |verdict: attest::Verdict| -> u8 {
-        let attest::Verdict {
+    let done = |verdict: verify::Verdict| -> u8 {
+        let verify::Verdict {
             gates,
             trail,
             notes,
-            legacy_notes,
             verified_under,
             loud,
             warnings,
@@ -256,22 +253,22 @@ fn run(args: &[String]) -> u8 {
         // A change to the repository's refs is always reported, `explain` or
         // not: data went away, and the line says how to bring it back.
         for line in &loud {
-            eprintln!("attest: {line}");
+            eprintln!("greensummit: {line}");
         }
         // `explain` says the warnings where they arose, in the trail.
         if explain {
             for step in &trail {
-                eprintln!("attest: {step}");
+                eprintln!("greensummit: {step}");
             }
         } else {
             for line in &warnings {
-                eprintln!("attest: {line}");
+                eprintln!("greensummit: {line}");
             }
         }
         // The name each covering block verified under, in every mode, as
         // verify.sh does: the rollout counts these lines.
         for ns in &verified_under {
-            eprintln!("attest: verified under {ns}");
+            eprintln!("greensummit: verified under {ns}");
         }
         if gha {
             // Both forms. `covered` is the legacy string a downstream
@@ -285,9 +282,6 @@ fn run(args: &[String]) -> u8 {
             let (notes_state, inputs_state) = states(notes);
             println!("notes={notes_state}");
             println!("inputs_notes={inputs_state}");
-            let (notes_state, inputs_state) = states(legacy_notes);
-            println!("legacy_notes={notes_state}");
-            println!("legacy_inputs_notes={inputs_state}");
         } else if json {
             println!("{}", as_json(&gates));
         } else if !gates.is_empty() {
@@ -299,10 +293,10 @@ fn run(args: &[String]) -> u8 {
     let here = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let Some(signers) = signers
         .as_deref()
-        .map(|s| attest::resolve_signers(&here, s))
-        .or_else(|| attest::default_signers(&here))
+        .map(|s| verify::resolve_signers(&here, s))
+        .or_else(|| verify::default_signers(&here))
     else {
-        return done(attest::Verdict::nothing(
+        return done(verify::Verdict::nothing(
             "no allowed_signers found (.forgejo/ or .github/) at the repository root",
         ));
     };
@@ -317,7 +311,7 @@ fn run(args: &[String]) -> u8 {
         None => Some(format::platform()),
     };
 
-    done(attest::evaluate(
+    done(verify::evaluate(
         &here,
         &signers,
         principal.as_deref(),
@@ -430,9 +424,9 @@ mod tests {
 
     #[test]
     fn split_note_restores_the_signed_trailing_newline() {
-        let body = "amont-attest-v2\ntree abc\n\n-----BEGIN SSH SIGNATURE-----\nx";
+        let body = "greensummit-v2\ntree abc\n\n-----BEGIN SSH SIGNATURE-----\nx";
         let (payload, sig) = format::split_note(body).unwrap();
-        assert_eq!(payload, "amont-attest-v2\ntree abc\n");
+        assert_eq!(payload, "greensummit-v2\ntree abc\n");
         assert!(sig.starts_with("-----BEGIN SSH SIGNATURE-----"));
         assert!(format::split_note("no blank line here").is_none());
         assert!(format::split_note("payload\n\nnot a signature").is_none());

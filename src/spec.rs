@@ -1,4 +1,4 @@
-//! The `attest-inputs` declaration (SPEC.md, "Input fingerprints") and the
+//! The `greensummit-inputs` declaration (SPEC.md, "Input fingerprints") and the
 //! canonical-tree opt-out it governs (SPEC.md, "Canonical tree").
 
 use std::path::Path;
@@ -7,7 +7,7 @@ use crate::git;
 
 /// Where a repository declares which paths each gate reads, in order of
 /// precedence. Both are always part of every fingerprint's listing.
-pub const SPEC_PATHS: [&str; 2] = [".forgejo/attest-inputs", ".github/attest-inputs"];
+pub const SPEC_PATHS: [&str; 2] = [".forgejo/greensummit-inputs", ".github/greensummit-inputs"];
 pub const MAX_SPEC_BYTES: usize = 65536;
 pub const MAX_SPEC_GATES: usize = 64;
 pub const MAX_SPEC_PATHS: usize = 64;
@@ -354,10 +354,11 @@ pub fn conf_says_plan_exempt_off(bytes: &[u8]) -> bool {
 pub enum PlanExempt {
     /// Neither opt-out is committed.
     On,
-    /// `@plan-exempt off` in the tree's `attest-inputs`.
+    /// `@plan-exempt off` in the tree's `greensummit-inputs`.
     Off,
     /// Only `set planExempt off` in the tree's `amont.conf`: off, and
-    /// deprecated (read until 2.0.0).
+    /// deprecated (read until the greensummit fleet census, Phase 5 of
+    /// docs/plans/2026-11-16-git-attest-becomes-greensummit.md).
     OffByAmontConf,
     /// A failing `ls-tree`, or a listed file whose blob cannot be read. Fails
     /// narrow: callers treat it as off; only the log differs.
@@ -373,7 +374,7 @@ impl PlanExempt {
 
 /// The line a verifier reports when only the deprecated opt-out is present.
 pub const DEPRECATED_OPT_OUT: &str =
-    "deprecated: planExempt in amont.conf; also write @plan-exempt off in attest-inputs";
+    "deprecated: planExempt in amont.conf; also write @plan-exempt off in greensummit-inputs";
 
 /// Is the canonical route switched off for `tree`? Read from the committed
 /// bytes, never through a tool's trust-gated settings: `off` only narrows, so
@@ -501,18 +502,18 @@ impl CoverageError {
     pub fn render(&self, tree: &str) -> String {
         match self {
             CoverageError::Missing => format!(
-                "check-attest-inputs: no {} or {} on {tree}",
+                "check-greensummit-inputs: no {} or {} on {tree}",
                 SPEC_PATHS[0], SPEC_PATHS[1]
             ),
             CoverageError::Ambiguous => format!(
-                "check-attest-inputs: both {} and {} exist on {tree}; that disables the route",
+                "check-greensummit-inputs: both {} and {} exist on {tree}; that disables the route",
                 SPEC_PATHS[0], SPEC_PATHS[1]
             ),
             CoverageError::Invalid(path) => format!(
-                "check-attest-inputs: {path} is invalid on {tree} (one violation invalidates the whole spec; see attest SPEC, \"Input fingerprints\")"
+                "check-greensummit-inputs: {path} is invalid on {tree} (one violation invalidates the whole spec; see attest SPEC, \"Input fingerprints\")"
             ),
             CoverageError::Unlisted => {
-                format!("check-attest-inputs: git could not list {tree}, or it is empty")
+                format!("check-greensummit-inputs: git could not list {tree}, or it is empty")
             }
         }
     }
@@ -537,16 +538,16 @@ impl Findings {
         let mut out = String::new();
         for g in &self.undeclared {
             out.push_str(&format!(
-                "check-attest-inputs: {g}: not declared in the spec\n"
+                "check-greensummit-inputs: {g}: not declared in the spec\n"
             ));
         }
         for g in &self.unfingerprintable {
             out.push_str(&format!(
-                "check-attest-inputs: {g}: cannot be fingerprinted (a required path is missing)\n"
+                "check-greensummit-inputs: {g}: cannot be fingerprinted (a required path is missing)\n"
             ));
         }
         for (g, paths) in &self.uncovered {
-            out.push_str(&format!("check-attest-inputs: {g}: not covered:\n"));
+            out.push_str(&format!("check-greensummit-inputs: {g}: not covered:\n"));
             for p in paths.iter().take(LIST_CAP) {
                 out.push_str(&format!("  {p}\n"));
             }
@@ -555,7 +556,7 @@ impl Findings {
             }
         }
         out.push_str(
-            "check-attest-inputs: fix: declare each path above for that gate (a directory \
+            "check-greensummit-inputs: fix: declare each path above for that gate (a directory \
              covers everything under it); only a path no gate reads may be exempt, and that \
              is a code-review decision. An undeclared path makes CI and the hooks skip \
              wrongly the day it changes.\n",

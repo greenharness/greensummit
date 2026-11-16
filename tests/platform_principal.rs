@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use git_attest::verify::evaluate;
+use greensummit::verify::evaluate;
 
 fn run(dir: &Path, program: &str, args: &[&str]) -> String {
     let out = Command::new(program)
@@ -36,7 +36,7 @@ impl Fixture {
         let public = std::fs::read_to_string(dir.join("key.pub")).unwrap();
         std::fs::write(
             dir.join("allowed_signers"),
-            format!("{principal} namespaces=\"amont-attest\" {public}"),
+            format!("{principal} namespaces=\"greensummit\" {public}"),
         )
         .unwrap();
         run(&dir, "git", &["init", "-q", "--template="]);
@@ -65,14 +65,14 @@ impl Fixture {
 
     fn attest_payload(&self, platform_line: &str) {
         let payload = format!(
-            "amont-attest-v2\ntree {}\ngates test lint\n{platform_line}",
+            "greensummit-v2\ntree {}\ngates test lint\n{platform_line}",
             self.tree
         );
         std::fs::write(self.dir.join("payload"), &payload).unwrap();
         run(
             &self.dir,
             "ssh-keygen",
-            &["-Y", "sign", "-n", "amont-attest", "-f", "key", "payload"],
+            &["-Y", "sign", "-n", "greensummit", "-f", "key", "payload"],
         );
         let signature = std::fs::read_to_string(self.dir.join("payload.sig")).unwrap();
         let note = format!("{payload}\n{}", signature.trim_end());
@@ -86,7 +86,7 @@ impl Fixture {
                 "user.email=t@t",
                 "notes",
                 "--ref",
-                "amont-attest",
+                "greensummit",
                 "add",
                 "-f",
                 "-m",
@@ -173,7 +173,7 @@ fn a_bound_signer_with_no_platform_line_covers_nothing() {
 
 #[test]
 fn the_refusal_for_a_block_with_no_platform_reads_names_no_platform() {
-    let refusal = git_attest::sign::Error::PlatformBound {
+    let refusal = greensummit::sign::Error::PlatformBound {
         signer: "cluster-signer@x86_64-linux".to_string(),
         bound: "x86_64-linux".to_string(),
         platform: None,
@@ -193,15 +193,15 @@ fn sign_verify_refuses_a_bound_signer_payload_with_no_platform() {
     fixture.attest_payload("");
     let payload = std::fs::read_to_string(fixture.dir.join("payload")).unwrap();
     let signature = std::fs::read_to_string(fixture.dir.join("payload.sig")).unwrap();
-    let verdict = git_attest::sign::verify(
-        "amont-attest",
+    let verdict = greensummit::sign::verify(
+        "greensummit",
         &payload,
         signature.trim_end(),
         &fixture.dir.join("allowed_signers"),
         None,
     );
     match verdict {
-        Err(git_attest::sign::Error::PlatformBound {
+        Err(greensummit::sign::Error::PlatformBound {
             ref signer,
             ref bound,
             platform: None,

@@ -5,13 +5,13 @@
 #                [--producer NAME] [--attempts N] [--no-push] [--allow-dirty]
 #                [--github-output] [--quiet]        < private-key
 #
-# Signs a `greengate-attest-v2` block over HEAD's tree, APPENDS it to the note
-# on that tree in refs/notes/greengate-attest, and pushes the ref — so the next job
+# Signs a `greensummit-v2` block over HEAD's tree, APPENDS it to the note
+# on that tree in refs/notes/greensummit, and pushes the ref — so the next job
 # that checks out the same tree (a re-run, the push to main after a merge) can
 # skip what this one already ran. `verify.sh` is the other half.
 #
-# With --no-push the block goes to refs/notes/attest-local/greengate-attest
-# instead: refs/notes/greengate-attest is origin's mirror, and a block origin never
+# With --no-push the block goes to refs/notes/greensummit-local/greensummit
+# instead: refs/notes/greensummit is origin's mirror, and a block origin never
 # saw is one origin cannot revoke, so verifiers read it only on request.
 #
 # The private key arrives on STDIN and nowhere else: never argv, which is
@@ -52,15 +52,14 @@
 # and declared paths are word-split on purpose and must stay literal.
 set -uf
 
-# The GREEN name set (SPEC.md, "Names"), since 1.10.0; before, the LEGACY
-# `amont-attest` one. Held equal to git-attest's `format::WRITE` by
+# The name set (SPEC.md, "Names"). Held equal to greensummit's `format::WRITE` by
 # tests/sign.sh, which reads back what both signers write.
-FORMAT=greengate-attest-v2
-NOTES_REF=greengate-attest
-INPUTS_REF=greengate-attest-inputs
-NAMESPACE=greengate-attest
-INPUT_DOMAIN=greengate-attest-input
-CANON_DOMAIN=greengate-attest-canon
+FORMAT=greensummit-v2
+NOTES_REF=greensummit
+INPUTS_REF=greensummit-inputs
+NAMESPACE=greensummit
+INPUT_DOMAIN=greensummit-input
+CANON_DOMAIN=greensummit-canon
 PRODUCER=greengate
 
 gates=; have_gates=; platform=; object=; remote=origin; producer=attest-sign
@@ -83,14 +82,14 @@ while [ $# -gt 0 ]; do
 done
 
 # Deprecated since 1.7.0 (decisions ADR-0037): one line on stderr, even under
-# --quiet, and stdout is untouched. The actions set ATTEST_NO_DEPRECATION when
+# --quiet, and stdout is untouched. The actions set GREENSUMMIT_NO_DEPRECATION when
 # they fall back here, having already warned why.
-if [ -z "${ATTEST_NO_DEPRECATION:-}" ]; then
-    msg='sign.sh is deprecated and goes away in 2.0.0; run git-attest sign, which takes the same flags and prints the same lines'
+if [ -z "${GREENSUMMIT_NO_DEPRECATION:-}" ]; then
+    msg='sign.sh is deprecated and goes away in 2.0.0; run greensummit sign, which takes the same flags and prints the same lines'
     if [ "${GITHUB_ACTIONS:-}" = true ]; then
-        printf '::warning title=attest::%s\n' "$msg" >&2
+        printf '::warning title=greensummit::%s\n' "$msg" >&2
     else
-        printf 'attest: %s\n' "$msg" >&2
+        printf 'greensummit: %s\n' "$msg" >&2
     fi
 fi
 [ -n "$have_gates" ] || { printf 'sign.sh: --gates is required\n' >&2; exit 2; }
@@ -100,7 +99,7 @@ if [ -t 0 ]; then
     exit 2
 fi
 
-say() { [ -n "$quiet" ] || printf 'attest-sign: %s\n' "$1" >&2; }
+say() { [ -n "$quiet" ] || printf 'greensummit sign: %s\n' "$1" >&2; }
 
 # The ONE exit for every outcome: the five output lines, then 0.
 inputs_wanted=0; inputs_published=0
@@ -204,7 +203,7 @@ fi
 
 # platform-table:start
 # This machine as <arch>-<os>, in the names Rust's std::env::consts uses, so
-# the shell and git-attest agree. Kept byte-identical in verify.sh,
+# the shell and greensummit agree. Kept byte-identical in verify.sh,
 # sign/sign.sh and tests/lib.sh; `make lint` checks that. A machine this
 # misnames can only lose a skip, never gain one.
 detect_platform() {
@@ -246,10 +245,10 @@ detect_platform() {
 # sign/sign.sh; `make lint` checks that. Both read $tmp and, if set, $root.
 
 # Does tree $1 opt out of the canonical route? Two committed forms, either one
-# enough: `@plan-exempt off` in its attest-inputs (1.6.0; blanks around and
+# enough: `@plan-exempt off` in its greensummit-inputs (1.6.0; blanks around and
 # between the two words, nothing else, found even in a spec that is otherwise
 # invalid, since off only narrows), and `set planExempt off` in its amont.conf,
-# read until 2.0.0 with one tolerant reading shared with git-attest and amont:
+# read until 2.0.0 with one tolerant reading shared with greensummit and amont:
 # strip CR, trim blanks, compare the three words case-insensitively.
 # Exit 0: off, by the directive. Exit 3: off, by amont.conf alone (deprecated).
 # Exit 1: on. Exit 2: unreadable, a failing ls-tree or a listed file that
@@ -257,7 +256,7 @@ detect_platform() {
 # differs.
 plan_exempt_off() {
     local listing p
-    for p in .forgejo/attest-inputs .github/attest-inputs; do
+    for p in .forgejo/greensummit-inputs .github/greensummit-inputs; do
         listing=$(git -C "${root:-.}" ls-tree --full-tree "$1" -- "$p" 2> /dev/null) || return 2
         [ -n "$listing" ] || continue
         git -C "${root:-.}" cat-file blob "$1:$p" > "$tmp/opt-out" 2> /dev/null || return 2
@@ -312,14 +311,14 @@ canon_key() { printf '%s %s\n' "$CANON_DOMAIN" "$1" | git -C "${root:-.}" hash-o
 spec_ok=; spec_bad=
 load_spec() {
     local present='' p n bad
-    for p in .forgejo/attest-inputs .github/attest-inputs; do
+    for p in .forgejo/greensummit-inputs .github/greensummit-inputs; do
         git cat-file -e "$object_tree:$p" 2> /dev/null && present="$present $p"
     done
     # shellcheck disable=SC2086  # the list is built from fixed names
     set -- $present
     [ $# -gt 0 ] || return 0
     if [ $# -gt 1 ]; then
-        say "both .forgejo/attest-inputs and .github/attest-inputs exist; no input fingerprints"
+        say "both .forgejo/greensummit-inputs and .github/greensummit-inputs exist; no input fingerprints"
         spec_bad=1; return 0
     fi
     p=$1
@@ -390,7 +389,7 @@ required_paths() { printf '%s\n' "$1" | awk '{ o = ""; for (i = 1; i <= NF; i++)
 fingerprint() {
     local g=$1 paths plain tok listing_rc
     # ENVIRON, not -v: awk processes backslash escapes in a -v value.
-    paths=$(ATTEST_G=$g awk -F '\t' '$1 == ENVIRON["ATTEST_G"] { print $2; exit }' "$tmp/spec.gates")
+    paths=$(GREENSUMMIT_G=$g awk -F '\t' '$1 == ENVIRON["GREENSUMMIT_G"] { print $2; exit }' "$tmp/spec.gates")
     [ -n "$paths" ] || return 1
     plain=$(plain_paths "$paths")
     # Required paths must resolve; an optional one may be absent, and its
@@ -409,7 +408,7 @@ fingerprint() {
         | git cat-file --batch-check 2> /dev/null \
         | awk -v want="$#" '/ missing$/ { m = 1 } { n++ } END { exit (m || n != want) }' || return 1
     # shellcheck disable=SC2046,SC2086  # same: blank-free tokens, deliberately split
-    set -- .forgejo/attest-inputs .github/attest-inputs .gitmodules \
+    set -- .forgejo/greensummit-inputs .github/greensummit-inputs .gitmodules \
         $(for tok in $plain; do printf '.gitattributes\n'; d=${tok%/*}; while [ "$d" != "$tok" ]; do printf '%s/.gitattributes\n' "$d"; tok=$d; d=${tok%/*}; done; done | sort -u) \
         $plain
     git ls-tree -r -z --full-tree "$object_tree" -- "$@" > "$tmp/listing" 2> /dev/null; listing_rc=$?
@@ -454,7 +453,7 @@ else
         0 | 3) say "planExempt is off here; no canonical tree" ;;
         1) canon_oid=$(canon_of "$object_tree") || canon_oid=
            [ -n "$canon_oid" ] || say "cannot compute the canonical tree; none attached" ;;
-        *) say "cannot read amont.conf or attest-inputs; no canonical tree" ;;
+        *) say "cannot read amont.conf or greensummit-inputs; no canonical tree" ;;
     esac
 fi
 
@@ -532,7 +531,7 @@ publish() { # ref object...
     done
 }
 
-# The same, locally only, into refs/notes/attest-local/<ref>.
+# The same, locally only, into refs/notes/greensummit-local/<ref>.
 publish_local() { # ref object...
     local ref=$1; shift
     local appended obj existing
@@ -562,9 +561,9 @@ keys_n=$#
 # earlier repairs the missing keys next time: `already-present` on the main
 # ref never short-circuits the inputs ref.
 if [ -z "$push" ]; then
-    main=$(publish_local "attest-local/$NOTES_REF" "$object_oid")
+    main=$(publish_local "greensummit-local/$NOTES_REF" "$object_oid")
     if [ "$keys_n" -gt 0 ]; then
-        case $(publish_local "attest-local/$INPUTS_REF" "$@") in error) ;; *) inputs_published=$inputs_wanted ;; esac
+        case $(publish_local "greensummit-local/$INPUTS_REF" "$@") in error) ;; *) inputs_published=$inputs_wanted ;; esac
     fi
     case $main in
         error) say "cannot write the note"; finish error false false ;;

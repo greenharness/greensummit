@@ -16,16 +16,16 @@
 
 case one directory: the spec files, .gitmodules, the root .gitattributes
 implicit src
-out .forgejo/attest-inputs
-out .github/attest-inputs
+out .forgejo/greensummit-inputs
+out .github/greensummit-inputs
 out .gitmodules
 out .gitattributes
 end
 
 case every ancestor's .gitattributes, sorted and once each
 implicit src/deep/x.rs x/y src/z
-out .forgejo/attest-inputs
-out .github/attest-inputs
+out .forgejo/greensummit-inputs
+out .github/greensummit-inputs
 out .gitmodules
 out .gitattributes
 out src/.gitattributes

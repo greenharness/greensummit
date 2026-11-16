@@ -6,7 +6,7 @@ LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # platform-table:start
 # This machine as <arch>-<os>, in the names Rust's std::env::consts uses, so
-# the shell and git-attest agree. Kept byte-identical in verify.sh,
+# the shell and greensummit agree. Kept byte-identical in verify.sh,
 # sign/sign.sh and tests/lib.sh; `make lint` checks that. A machine this
 # misnames can only lose a skip, never gain one.
 detect_platform() {
@@ -45,7 +45,7 @@ PASS=0; FAIL=0; FAILED_CASES=
 
 # The suites run verify.sh and sign.sh hundreds of times; their deprecation
 # line is tested once, in tests/fetch.sh.
-ATTEST_NO_DEPRECATION=1; export ATTEST_NO_DEPRECATION
+GREENSUMMIT_NO_DEPRECATION=1; export GREENSUMMIT_NO_DEPRECATION
 
 # Three ed25519 keys: the signer, a second signer for the same file, and a
 # stranger whose key is in no file.
@@ -54,6 +54,20 @@ gen_keys() {
     ssh-keygen -q -t ed25519 -N '' -C second@example.org -f "$WORK/second"
     ssh-keygen -q -t ed25519 -N '' -C signer@example.org -f "$WORK/other"
 }
+
+# The names the fixtures are written under. The default is the one set 2.0.0
+# reads and writes. `NAMES=amont`, set before this file is sourced, is for a
+# suite that drives a FROZEN 1.x verifier, which knows only the 1.x names.
+case ${NAMES:-summit} in
+    amont)
+        F_FORMAT=amont-attest-v2; F_REF=amont-attest; F_INPUTS_REF=amont-attest-inputs
+        F_NS=amont-attest; F_INPUT_DOMAIN=amont-attest-input; F_CANON_DOMAIN=amont-attest-canon
+        F_PRODUCER=amont; F_SPEC=attest-inputs ;;
+    *)
+        F_FORMAT=greensummit-v2; F_REF=greensummit; F_INPUTS_REF=greensummit-inputs
+        F_NS=greensummit; F_INPUT_DOMAIN=greensummit-input; F_CANON_DOMAIN=greensummit-canon
+        F_PRODUCER=greengate; F_SPEC=greensummit-inputs ;;
+esac
 
 # A repository with one commit and an allowed_signers naming `principal` —
 # and, when a second pair is given, a second signer after it.
@@ -69,9 +83,9 @@ make_repo() { # dir principal keyfile [principal2 keyfile2]
     git -C "$dir" config core.autocrlf false
     git -C "$dir" config user.email signer@example.org
     git -C "$dir" config user.name Signer
-    printf '%s namespaces="%s" %s\n' "$principal" "${SIGNERS_NS:-amont-attest,greengate-attest}" "$(cat "$keyfile.pub")" \
+    printf '%s namespaces="%s" %s\n' "$principal" "${SIGNERS_NS:-$F_NS}" "$(cat "$keyfile.pub")" \
         > "$dir/.github/allowed_signers"
-    [ $# -lt 5 ] || printf '%s namespaces="%s" %s\n' "$4" "${SIGNERS_NS:-amont-attest,greengate-attest}" "$(cat "$5.pub")" \
+    [ $# -lt 5 ] || printf '%s namespaces="%s" %s\n' "$4" "${SIGNERS_NS:-$F_NS}" "$(cat "$5.pub")" \
         >> "$dir/.github/allowed_signers"
     echo content > "$dir/file.txt"
     git -C "$dir" add -A
@@ -81,9 +95,9 @@ make_repo() { # dir principal keyfile [principal2 keyfile2]
 payload_for() { # dir gates platform [format] [inputs "gate=fp ..."]
     local kv
     printf '%s\ntree %s\ngates %s\nplatform %s\n' \
-        "${4:-amont-attest-v2}" "$(git -C "$1" rev-parse 'HEAD^{tree}')" "$2" "$3"
+        "${4:-$F_FORMAT}" "$(git -C "$1" rev-parse 'HEAD^{tree}')" "$2" "$3"
     for kv in ${5:-}; do printf 'input %s %s\n' "${kv%%=*}" "${kv#*=}"; done
-    printf 'amont 1.23.0\n'
+    printf '%s 1.23.0\n' "$F_PRODUCER"
 }
 
 # Sign `payload` with `keyfile` and print the BLOCK: payload, a blank line, the
@@ -94,10 +108,10 @@ payload_for() { # dir gates platform [format] [inputs "gate=fp ..."]
 # signing the lines without it produces a signature that is valid over bytes
 # no verifier will ever reconstruct.
 sign_block() { # dir payload keyfile
-    sign_block_ns amont-attest "$1" "$2" "$3"
+    sign_block_ns "$F_NS" "$1" "$2" "$3"
 }
 
-# The same under any SSH namespace (the greengate-attest name set, 1.9.0).
+# The same under any SSH namespace.
 sign_block_ns() { # ns dir payload keyfile
     printf '%s\n' "$3" > "$2/.p"
     rm -f "$2/.p.sig"
@@ -120,7 +134,7 @@ note_signed() { # ref ns dir payload keyfile [target]
 attach_note() { # dir payload keyfile [target]
     local dir=$1 payload=$2 keyfile=$3 target=${4:-}
     [ -n "$target" ] || target=$(git -C "$dir" rev-parse 'HEAD^{tree}')
-    git -C "$dir" notes --ref amont-attest add -f \
+    git -C "$dir" notes --ref "$F_REF" add -f \
         -m "$(sign_block "$dir" "$payload" "$keyfile")" "$target" 2> /dev/null
 }
 
@@ -129,7 +143,7 @@ attach_note() { # dir payload keyfile [target]
 append_note() { # dir payload keyfile [target]
     local dir=$1 payload=$2 keyfile=$3 target=${4:-}
     [ -n "$target" ] || target=$(git -C "$dir" rev-parse 'HEAD^{tree}')
-    git -C "$dir" notes --ref amont-attest append \
+    git -C "$dir" notes --ref "$F_REF" append \
         -m "$(sign_block "$dir" "$payload" "$keyfile")" "$target" 2> /dev/null
 }
 
@@ -140,7 +154,7 @@ raw_note() { # dir content [target]
     local dir=$1 content=$2 target=${3:-} blob
     [ -n "$target" ] || target=$(git -C "$dir" rev-parse 'HEAD^{tree}')
     blob=$(printf '%s' "$content" | git -C "$dir" hash-object -w --stdin --no-filters)
-    git -C "$dir" notes --ref amont-attest add -f -C "$blob" "$target" 2> /dev/null
+    git -C "$dir" notes --ref "$F_REF" add -f -C "$blob" "$target" 2> /dev/null
 }
 
 # Arbitrary bytes as the note on `target` (default the HEAD tree) in any
@@ -153,7 +167,7 @@ note_in() { # ref dir content [target]
 }
 
 # The implementation with its reasons on stderr: verify.sh without --quiet,
-# git-attest `explain` instead of `covered`.
+# greensummit `explain` instead of `covered`.
 explain_impl() {
     case "$IMPL" in
         *verify.sh*) printf '%s' "$IMPL" | sed 's/ --quiet//' ;;
@@ -164,7 +178,7 @@ explain_impl() {
 # Run $IMPL in `dir` with the flags; stdout normalised to single spaces.
 run_impl() { # dir [flags...]
     local dir=$1; shift
-    # $IMPL is a command LINE ("git-attest covered") and must word-split;
+    # $IMPL is a command LINE ("greensummit covered") and must word-split;
     # the flags after it must not. Rebuilding the positional parameters does
     # both, and without `eval` — which would re-split the flags too.
     # shellcheck disable=SC2086
@@ -211,12 +225,12 @@ summary() {
 
 # --- input fingerprints (1.3.0) ---------------------------------------------
 
-# The spec, from stdin, committed as `.github/attest-inputs` (or under $2).
+# The spec, from stdin, committed as `.github/greensummit-inputs` (or under $2).
 write_spec() { # dir [.github|.forgejo] < spec
     local dir=$1 where=${2:-.github}
     mkdir -p "$dir/$where"
-    cat > "$dir/$where/attest-inputs"
-    git -C "$dir" add -A "$where/attest-inputs"
+    cat > "$dir/$where/$F_SPEC"
+    git -C "$dir" add -A "$where/$F_SPEC"
     git -C "$dir" commit -q -m spec
 }
 
@@ -238,15 +252,15 @@ fp_of() { # dir gate [tree]
     local dir=$1 g=$2 tree=${3:-} paths tok d where
     [ -n "$tree" ] || tree=$(git -C "$dir" rev-parse 'HEAD^{tree}')
     for where in .forgejo .github; do
-        paths=$(git -C "$dir" cat-file blob "$tree:$where/attest-inputs" 2> /dev/null \
-            | ATTEST_G=$g awk '$1 == ENVIRON["ATTEST_G"] { $1 = ""; sub(/^ +/, ""); print; exit }')
+        paths=$(git -C "$dir" cat-file blob "$tree:$where/$F_SPEC" 2> /dev/null \
+            | GREENSUMMIT_G=$g awk '$1 == ENVIRON["GREENSUMMIT_G"] { $1 = ""; sub(/^ +/, ""); print; exit }')
         [ -n "$paths" ] && break
     done
     [ -n "$paths" ] || return 1
     # The optional marker is not part of the path.
     paths=$(printf '%s\n' "$paths" | awk '{ o = ""; for (i = 1; i <= NF; i++) { t = $i; sub(/^[?]/, "", t); o = o (i > 1 ? " " : "") t } print o }')
     # shellcheck disable=SC2046,SC2086
-    set -- .forgejo/attest-inputs .github/attest-inputs .gitmodules \
+    set -- ".forgejo/$F_SPEC" ".github/$F_SPEC" .gitmodules \
         $(for tok in $paths; do printf '.gitattributes\n'; d=${tok%/*}; while [ "$d" != "$tok" ]; do printf '%s/.gitattributes\n' "$d"; tok=$d; d=${tok%/*}; done; done | sort -u) \
         $paths
     git -C "$dir" ls-tree -r -z --full-tree "$tree" -- "$@" 2> /dev/null | git -C "$dir" hash-object --stdin
@@ -254,14 +268,14 @@ fp_of() { # dir gate [tree]
 
 # The synthetic note key for (gate, fingerprint).
 input_key() { # dir gate fp [domain]
-    printf '%s %s %s\n' "${4:-amont-attest-input}" "$2" "$3" | git -C "$1" hash-object --stdin
+    printf '%s %s %s\n' "${4:-$F_INPUT_DOMAIN}" "$2" "$3" | git -C "$1" hash-object --stdin
 }
 
 # A signed block APPENDED under K(gate, fp) in the inputs ref.
 attach_input() { # dir payload keyfile gate fp
     local dir=$1 payload=$2 keyfile=$3 k
     k=$(input_key "$dir" "$4" "$5")
-    git -C "$dir" notes --ref amont-attest-inputs append \
+    git -C "$dir" notes --ref "$F_INPUTS_REF" append \
         -m "$(sign_block "$dir" "$payload" "$keyfile")" "$k" 2> /dev/null
 }
 
@@ -270,7 +284,7 @@ raw_input_note() { # dir content gate fp
     local dir=$1 content=$2 k blob
     k=$(input_key "$dir" "$3" "$4")
     blob=$(printf '%s' "$content" | git -C "$dir" hash-object -w --stdin --no-filters)
-    git -C "$dir" notes --ref amont-attest-inputs add -f -C "$blob" "$k" 2> /dev/null
+    git -C "$dir" notes --ref "$F_INPUTS_REF" add -f -C "$blob" "$k" 2> /dev/null
 }
 
 # --- the canonical tree (1.5.0) ---------------------------------------------
@@ -291,21 +305,21 @@ canon_fp() { # dir [tree]
     }' | git -C "$dir" hash-object --stdin
 }
 
-# A payload with a `canon` line, from stdin to stdout, before the `amont` line.
+# A payload with a `canon` line, from stdin to stdout, before the producer line.
 with_canon() { # canon-oid
-    ATTEST_C=$1 awk '/^amont / { print "canon " ENVIRON["ATTEST_C"] } { print }'
+    GREENSUMMIT_C=$1 PRODUCER=$F_PRODUCER awk '$1 == ENVIRON["PRODUCER"] && NF == 2 { print "canon " ENVIRON["GREENSUMMIT_C"] } { print }'
 }
 
 # The synthetic note key for a canonical fingerprint.
 canon_key() { # dir canon [domain]
-    printf '%s %s\n' "${3:-amont-attest-canon}" "$2" | git -C "$1" hash-object --stdin
+    printf '%s %s\n' "${3:-$F_CANON_DOMAIN}" "$2" | git -C "$1" hash-object --stdin
 }
 
 # A signed block APPENDED under Kc(canon) in the inputs ref.
 attach_canon() { # dir payload keyfile canon
     local dir=$1 payload=$2 keyfile=$3 k
     k=$(canon_key "$dir" "$4")
-    git -C "$dir" notes --ref amont-attest-inputs append \
+    git -C "$dir" notes --ref "$F_INPUTS_REF" append \
         -m "$(sign_block "$dir" "$payload" "$keyfile")" "$k" 2> /dev/null
 }
 
@@ -389,17 +403,17 @@ check_faulty() { # name mode expected-stdout dir [flags...]
     mkdir -p "$WORK/fault"
     tr -d '\r' < "$LIB_DIR/fault/git" > "$WORK/fault/git"
     chmod +x "$WORK/fault/git"
-    ATTEST_REAL_GIT=$(command -v git); export ATTEST_REAL_GIT
+    GREENSUMMIT_REAL_GIT=$(command -v git); export GREENSUMMIT_REAL_GIT
     PATH="$WORK/fault:$PATH"
-    probe=$(ATTEST_FAULT=probe git --version 2> /dev/null)
+    probe=$(GREENSUMMIT_FAULT=probe git --version 2> /dev/null)
     if [ "$probe" != attest-faulty-git ]; then
         PATH=$oldpath
         printf '  SKIP  %s (the faulty-git wrapper is not reached on this platform: got %s)\n' "$name" "[$probe]"
         return 0
     fi
-    ATTEST_FAULT=$mode; export ATTEST_FAULT
+    GREENSUMMIT_FAULT=$mode; export GREENSUMMIT_FAULT
     run_impl "$dir" "$@"
-    PATH=$oldpath; unset ATTEST_FAULT ATTEST_REAL_GIT
+    PATH=$oldpath; unset GREENSUMMIT_FAULT GREENSUMMIT_REAL_GIT
     if [ "$GOT" = "$want" ] && [ "$RC" -eq 0 ]; then ok "$name"
     else fail "$name" "$(printf 'want %-28s got %s (exit %s)' "[$want]" "[$GOT]" "$RC")"; fi
 }
@@ -408,29 +422,29 @@ check_faulty() { # name mode expected-stdout dir [flags...]
 
 # Run $IMPL as if on another machine: tests/fake/uname (and isainfo) first on
 # PATH, answering "<-s> <-m> <-o>" and an isainfo -k. Only the shell verifier
-# asks uname — git-attest's platform is fixed at compile time — so another
+# asks uname — greensummit's platform is fixed at compile time — so another
 # implementation is SKIPPED, visibly, as is a host where the wrapper is not
 # reached.
 check_platform() { # name "S M O" isainfo expected-stdout dir [flags...]
     local name=$1 fake=$2 isa=$3 want=$4 dir=$5 oldpath=$PATH probe; shift 5
     case "$IMPL" in
         bash*) ;;
-        *) printf '  SKIP  %s (git-attest takes its platform from the compiler)\n' "$name"; return 0 ;;
+        *) printf '  SKIP  %s (greensummit takes its platform from the compiler)\n' "$name"; return 0 ;;
     esac
     mkdir -p "$WORK/fake"
     tr -d '\r' < "$LIB_DIR/fake/uname" > "$WORK/fake/uname"
     tr -d '\r' < "$LIB_DIR/fake/isainfo" > "$WORK/fake/isainfo"
     chmod +x "$WORK/fake/uname" "$WORK/fake/isainfo"
     PATH="$WORK/fake:$PATH"
-    probe=$(ATTEST_FAKE_UNAME="x x x" uname --probe 2> /dev/null)
+    probe=$(GREENSUMMIT_FAKE_UNAME="x x x" uname --probe 2> /dev/null)
     if [ "$probe" != attest-fake-uname ]; then
         PATH=$oldpath
         printf '  SKIP  %s (the fake uname is not reached here)\n' "$name"
         return 0
     fi
-    ATTEST_FAKE_UNAME=$fake ATTEST_FAKE_ISAINFO=$isa; export ATTEST_FAKE_UNAME ATTEST_FAKE_ISAINFO
+    GREENSUMMIT_FAKE_UNAME=$fake GREENSUMMIT_FAKE_ISAINFO=$isa; export GREENSUMMIT_FAKE_UNAME GREENSUMMIT_FAKE_ISAINFO
     run_impl "$dir" "$@"
-    PATH=$oldpath; unset ATTEST_FAKE_UNAME ATTEST_FAKE_ISAINFO
+    PATH=$oldpath; unset GREENSUMMIT_FAKE_UNAME GREENSUMMIT_FAKE_ISAINFO
     if [ "$GOT" = "$want" ] && [ "$RC" -eq 0 ]; then ok "$name"
     else fail "$name" "$(printf 'want %-28s got %s (exit %s)' "[$want]" "[$GOT]" "$RC")"; fi
 }

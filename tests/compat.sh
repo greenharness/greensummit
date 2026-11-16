@@ -3,7 +3,7 @@
 # 1.1.0, which read ONE block. Run against a FROZEN implementation:
 #
 #   tests/compat.sh "bash tests/compat/verify-1.1.0.sh --quiet"
-#   tests/compat.sh "target/compat/target/release/git-attest covered"   # built from v1.1.0
+#   tests/compat.sh "target/compat/target/release/greensummit covered"   # built from v1.1.0
 #
 # The claim SPEC.md makes: a 1.1.0 verifier takes the payload before the first
 # blank line and the signature from the first BEGIN marker to the end of the
@@ -16,6 +16,9 @@ set -u
 
 # shellcheck disable=SC2034  # read by lib.sh
 IMPL=${1:?usage: compat.sh <frozen implementation command>}
+# The frozen 1.1.0 verifiers know only the 1.x names.
+# shellcheck disable=SC2034  # read by lib.sh
+NAMES=amont
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 # The helper is sourced, which shellcheck follows only under -x; the hook
@@ -50,7 +53,7 @@ make_repo "$R" signer@example.org "$WORK/key"
 append_note "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key"
 append_note "$R" "$(payload_for "$R" g2 "$PLATFORM")" "$WORK/key"
 tree=$(git -C "$R" rev-parse 'HEAD^{tree}')
-body=$(git -C "$R" notes --ref amont-attest show "$tree")
+body=$(git -C "$R" notes --ref "$F_REF" show "$tree")
 raw_note "$R" "$(printf '%s' "$body" | sed 's/^gates g1$/gates g1 g3/')"
 check "first block tampered, second valid: nothing" "" "$R"
 

@@ -1,4 +1,4 @@
-//! `git-attest sign`: attest, from CI, the gates that just passed on the tree
+//! `greensummit sign`: attest, from CI, the gates that just passed on the tree
 //! checked out here. The same flags, outputs and exit contract as
 //! `sign/sign.sh`, which it replaces; `tests/sign.sh` runs against both.
 //!
@@ -9,21 +9,21 @@
 use std::io::{IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 
-use git_attest::format::{block, platform, INPUTS_REF, LOCAL_PREFIX, NAMESPACE, NOTES_REF};
-use git_attest::notes::{publish, publish_local, Publish, Published};
-use git_attest::produce::{attestation, gate_list};
-use git_attest::sign::{public_key, sign, Error as SignError};
+use greensummit::format::{block, platform, INPUTS_REF, LOCAL_PREFIX, NAMESPACE, NOTES_REF};
+use greensummit::notes::{publish, publish_local, Publish, Published};
+use greensummit::produce::{attestation, gate_list};
+use greensummit::sign::{public_key, sign, Error as SignError};
 
 pub const USAGE: &str = "\
-git-attest sign — attest the gates that just passed on the tree checked out here
+greensummit sign — attest the gates that just passed on the tree checked out here
 
-  git-attest sign --gates \"NAMES\" [--platform P] [--object REV] [--remote NAME]
+  greensummit sign --gates \"NAMES\" [--platform P] [--object REV] [--remote NAME]
                   [--producer NAME] [--attempts N] [--no-push] [--allow-dirty]
                   [--github-output] [--quiet]        < private-key
 
-  Signs a greengate-attest-v2 block over HEAD's tree, APPENDS it to the note
-  on that tree in refs/notes/greengate-attest, and pushes the ref. With
-  --no-push the block goes to refs/notes/attest-local/greengate-attest instead.
+  Signs a greensummit-v2 block over HEAD's tree, APPENDS it to the note
+  on that tree in refs/notes/greensummit, and pushes the ref. With
+  --no-push the block goes to refs/notes/greensummit-local/greensummit instead.
 
   The private key arrives on STDIN and nowhere else, never argv. ed25519 only.
 
@@ -122,7 +122,7 @@ struct Report<'a> {
 impl Report<'_> {
     fn say(&self, line: &str) {
         if !self.o.quiet {
-            eprintln!("attest-sign: {line}");
+            eprintln!("greensummit sign: {line}");
         }
     }
 
@@ -223,12 +223,12 @@ pub fn run(args: &[String]) -> u8 {
     let o = match parse(args) {
         Ok(o) => o,
         Err(m) => {
-            eprintln!("git-attest sign: {m}");
+            eprintln!("greensummit sign: {m}");
             return 2;
         }
     };
     if std::io::stdin().is_terminal() {
-        eprintln!("git-attest sign: the private key is read from stdin, which is a terminal; pipe or redirect it");
+        eprintln!("greensummit sign: the private key is read from stdin, which is a terminal; pipe or redirect it");
         return 2;
     }
     let producer = match gate_list(&o.producer) {
@@ -280,7 +280,7 @@ pub fn run(args: &[String]) -> u8 {
     // IS HEAD's tree. Anything else would sign content the checks never saw.
     let object = o.object.clone().unwrap_or_else(|| head_tree.clone());
     let Some(object_oid) = git_out(&here, &["rev-parse", "--verify", "--quiet", &object]) else {
-        eprintln!("git-attest sign: --object {object} does not name an object");
+        eprintln!("greensummit sign: --object {object} does not name an object");
         return 2;
     };
     let Some(object_tree) = git_out(
@@ -292,11 +292,11 @@ pub fn run(args: &[String]) -> u8 {
             &format!("{object}^{{tree}}"),
         ],
     ) else {
-        eprintln!("git-attest sign: --object {object} has no tree");
+        eprintln!("greensummit sign: --object {object} has no tree");
         return 2;
     };
     if object_tree != head_tree {
-        eprintln!("git-attest sign: --object {object} has tree {object_tree}, but the checks ran on HEAD^{{tree}} {head_tree}; only that tree may be signed");
+        eprintln!("greensummit sign: --object {object} has tree {object_tree}, but the checks ran on HEAD^{{tree}} {head_tree}; only that tree may be signed");
         return 2;
     }
 

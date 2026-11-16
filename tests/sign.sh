@@ -2,9 +2,9 @@
 # The producer's contract, as fixtures: sign/sign.sh against a bare `origin`.
 #
 #   tests/sign.sh                # uses ./verify.sh to read back what was signed
-#   ATTEST_IMPL="target/release/git-attest covered" tests/sign.sh
+#   GREENSUMMIT_IMPL="target/release/greensummit covered" tests/sign.sh
 #                                # ...or any other verifier
-#   ATTEST_SIGN="target/release/git-attest sign" tests/sign.sh
+#   GREENSUMMIT_SIGN="target/release/greensummit sign" tests/sign.sh
 #                                # ...and any other signer: the same contract
 #
 # Every case asserts three things where they apply: the exit code (0 always,
@@ -16,10 +16,10 @@ set -u
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 SIGN="$HERE/sign/sign.sh"
 # The signer under test, a command line split on blanks.
-SIGNER=${ATTEST_SIGN:-"bash $SIGN"}
+SIGNER=${GREENSUMMIT_SIGN:-"bash $SIGN"}
 VERIFY="$HERE/verify.sh"
 # shellcheck disable=SC2034  # read by lib.sh
-IMPL=${ATTEST_IMPL:-"bash $VERIFY --quiet"}
+IMPL=${GREENSUMMIT_IMPL:-"bash $VERIFY --quiet"}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 # The helper is sourced, which shellcheck follows only under -x; the hook
@@ -73,18 +73,18 @@ covered_in_clone() { # [flags...]
 
 count_blocks() { grep -c '^-----BEGIN SSH SIGNATURE-----$'; }
 # The names both signers write: the GREEN set since 1.10.0 (SPEC.md, "Names"),
-# held equal to sign.sh's assignments and git-attest's `format::WRITE` by
+# held equal to sign.sh's assignments and greensummit's `format::WRITE` by
 # reading back what each wrote. A case that builds a LEGACY note by hand
 # (lib.sh's append_note) reads it under the LEGACY names.
-WREF=greengate-attest
-WFORMAT=greengate-attest-v2
-WNS=greengate-attest
-WINPUT=greengate-attest-input
-WCANON=greengate-attest-canon
+WREF=greensummit
+WFORMAT=greensummit-v2
+WNS=greensummit
+WINPUT=greensummit-input
+WCANON=greensummit-canon
 remote_blocks() { git --git-dir="$ORIGIN" notes --ref "$WREF" show "$(git -C "$R" rev-parse 'HEAD^{tree}')" 2> /dev/null | count_blocks; }
 # The local MIRROR of origin's ref, and the unpushed blocks beside it.
 local_blocks()  { git -C "$R" notes --ref "$WREF" show "$(git -C "$R" rev-parse 'HEAD^{tree}')" 2> /dev/null | count_blocks; }
-unpushed_blocks() { git -C "$R" notes --ref "attest-local/$WREF" show "$(git -C "$R" rev-parse 'HEAD^{tree}')" 2> /dev/null | count_blocks; }
+unpushed_blocks() { git -C "$R" notes --ref "greensummit-local/$WREF" show "$(git -C "$R" rev-parse 'HEAD^{tree}')" 2> /dev/null | count_blocks; }
 retried()       { case $ERR in *retrying*) return 0 ;; *) return 1 ;; esac; }
 
 # --- the happy path -------------------------------------------------------
@@ -116,7 +116,7 @@ assert_eq "the developer's block survives" "$(remote_blocks)" 2
 assert_eq "both blocks verify in a clone" "$(covered_in_clone --platform any)" "pre-push-cargo-test ci-fmt"
 
 # --- local only ------------------------------------------------------------
-# An unpushed block lives in refs/notes/attest-local/*, never in the mirror,
+# An unpushed block lives in refs/notes/greensummit-local/*, never in the mirror,
 # so a verify run (which re-syncs the mirror with origin) cannot drop it.
 make_remote_repo
 sign "$WORK/key" --gates ci-fmt --no-push
@@ -137,15 +137,15 @@ assert_eq "the unpushed block survives a verify run" "$(unpushed_blocks)" 1
 # is byte-identical before and after, and the outcome is push-failed.
 make_remote_repo
 sign "$WORK/key" --gates ci-fmt --no-push > /dev/null 2>&1
-before=$(git -C "$R" rev-parse "refs/notes/attest-local/$WREF")
+before=$(git -C "$R" rev-parse "refs/notes/greensummit-local/$WREF")
 git -C "$R" remote remove origin
 sign "$WORK/key" --gates ci-shellcheck
 expect "no origin at all: push-failed" 0 "status=push-failed|signed=false|pushed=false|gates=ci-shellcheck|inputs=0/0"
-assert_eq "local ref untouched (no origin)" "$(git -C "$R" rev-parse "refs/notes/attest-local/$WREF")" "$before"
+assert_eq "local ref untouched (no origin)" "$(git -C "$R" rev-parse "refs/notes/greensummit-local/$WREF")" "$before"
 git -C "$R" remote add origin "file:///nonexistent/repo.git"
 sign "$WORK/key" --gates ci-shellcheck
 expect "unreachable origin: push-failed" 0 "status=push-failed|signed=false|pushed=false|gates=ci-shellcheck|inputs=0/0"
-assert_eq "local ref untouched (unreachable)" "$(git -C "$R" rev-parse "refs/notes/attest-local/$WREF")" "$before"
+assert_eq "local ref untouched (unreachable)" "$(git -C "$R" rev-parse "refs/notes/greensummit-local/$WREF")" "$before"
 if retried; then fail "an unreachable remote is not retried" "$ERR"; else ok "an unreachable remote is not retried"; fi
 assert_eq "no temporary ref left behind" "$(git -C "$R" for-each-ref 'refs/notes/attest-sign-*')" ""
 
@@ -300,16 +300,16 @@ assert_eq "a foreign platform is not covered here" "$(covered_in_clone)" ""
 assert_eq "...but is on its own platform" "$(covered_in_clone --platform s390x-aix)" ci-fmt
 
 # The platform line uses the same table as the verifier (1.4.0). Only the
-# shell signer reads uname; git-attest takes its platform from the target it
+# shell signer reads uname; greensummit takes its platform from the target it
 # was built for, the names this table reproduces.
 if [ "$SIGNER" != "bash $SIGN" ]; then
     printf '  SKIP  a FreeBSD runner signs as x86_64-freebsd (only sign.sh reads uname)\n'
-elif (PATH="$HERE/tests/fake:$PATH" ATTEST_FAKE_UNAME="x x x" uname --probe 2> /dev/null) | grep -qx attest-fake-uname; then
+elif (PATH="$HERE/tests/fake:$PATH" GREENSUMMIT_FAKE_UNAME="x x x" uname --probe 2> /dev/null) | grep -qx attest-fake-uname; then
     make_remote_repo
-    (cd "$R" && PATH="$HERE/tests/fake:$PATH" ATTEST_FAKE_UNAME="FreeBSD amd64 FreeBSD" \
+    (cd "$R" && PATH="$HERE/tests/fake:$PATH" GREENSUMMIT_FAKE_UNAME="FreeBSD amd64 FreeBSD" \
         bash "$SIGN" --gates ci-fmt --no-push < "$WORK/key" > /dev/null 2>&1)
     assert_eq "a FreeBSD runner signs as x86_64-freebsd" \
-        "$(git -C "$R" notes --ref "attest-local/$WREF" show "$(git -C "$R" rev-parse 'HEAD^{tree}')" | awk '$1 == "platform" { print $2 }')" \
+        "$(git -C "$R" notes --ref "greensummit-local/$WREF" show "$(git -C "$R" rev-parse 'HEAD^{tree}')" | awk '$1 == "platform" { print $2 }')" \
         x86_64-freebsd
 else
     printf '  SKIP  a FreeBSD runner signs as x86_64-freebsd (the fake uname is not reached here)\n'
@@ -369,7 +369,7 @@ sign "$WORK/key" --gates "ci-fmt ci-lint"
 expect "spec: optional paths absent" 0 "status=pushed|signed=true|pushed=true|gates=ci-fmt ci-lint|inputs=2/2"
 assert_eq "spec: ...reported on exactly one line" "$(printf '%s\n' "$ERR" | grep -c 'optional paths absent')" 1
 assert_eq "spec: ...each path once" "$(printf '%s\n' "$ERR" | grep 'optional paths absent')" \
-    "attest-sign: optional paths absent (their absence is bound): .cargo build.rs examples"
+    "greensummit sign: optional paths absent (their absence is bound): .cargo build.rs examples"
 move_tree "$R"; git -C "$R" push -q origin HEAD:refs/heads/main
 assert_eq "spec: ...and a clone covers by that fingerprint" "$(covered_in_clone)" "ci-fmt ci-lint"
 sign "$WORK/key" --gates ci-fmt --quiet
@@ -394,7 +394,7 @@ fp_fmt=$(fp_of "$R" ci-fmt)
 sign "$WORK/key" --gates ci-fmt --no-push
 expect "spec: --no-push appends locally to both refs" 0 "status=local|signed=true|pushed=false|gates=ci-fmt|inputs=1/1"
 assert_eq "spec: ...local inputs ref has the key" \
-    "$(git -C "$R" notes --ref "attest-local/$WREF-inputs" show "$(input_key "$R" ci-fmt "$fp_fmt" "$WINPUT")" 2> /dev/null | count_blocks)" 1
+    "$(git -C "$R" notes --ref "greensummit-local/$WREF-inputs" show "$(input_key "$R" ci-fmt "$fp_fmt" "$WINPUT")" 2> /dev/null | count_blocks)" 1
 
 # Partial publication: the inputs ref refused, the main ref not. A later run
 # repairs the keys without touching the main ref.
@@ -402,7 +402,7 @@ spec_repo
 fp_fmt=$(fp_of "$R" ci-fmt)
 mkdir -p "$ORIGIN/hooks"
 # shellcheck disable=SC2016  # the hook's own $ref, not ours
-printf '#!/usr/bin/env bash\nwhile read -r _ _ ref; do [ "$ref" = refs/notes/greengate-attest-inputs ] && { echo "inputs ref refused by policy" >&2; exit 1; }; done\nexit 0\n' > "$ORIGIN/hooks/pre-receive"
+printf '#!/usr/bin/env bash\nwhile read -r _ _ ref; do [ "$ref" = refs/notes/greensummit-inputs ] && { echo "inputs ref refused by policy" >&2; exit 1; }; done\nexit 0\n' > "$ORIGIN/hooks/pre-receive"
 chmod +x "$ORIGIN/hooks/pre-receive"
 sign "$WORK/key" --gates ci-fmt
 expect "spec: inputs ref refused, main ref published" 0 "status=pushed|signed=true|pushed=true|gates=ci-fmt|inputs=0/1"
@@ -421,7 +421,7 @@ sign "$WORK/key" --gates ci-lint --no-push
 sign "$WORK/key" --gates ci-fmt
 expect "inputs: a pushed block after a local-only one" 0 "status=pushed|signed=true|pushed=true|gates=ci-fmt|inputs=1/1"
 assert_eq "inputs: the local-only key survived" \
-    "$(git -C "$R" notes --ref "attest-local/$WREF-inputs" show "$(input_key "$R" ci-lint "$fp_lint" "$WINPUT")" 2> /dev/null | count_blocks)" 1
+    "$(git -C "$R" notes --ref "greensummit-local/$WREF-inputs" show "$(input_key "$R" ci-lint "$fp_lint" "$WINPUT")" 2> /dev/null | count_blocks)" 1
 assert_eq "inputs: the pushed key is there too" "$(remote_input_blocks ci-fmt "$fp_fmt")" 1
 
 # --- the canonical tree (1.5.0) ---------------------------------------------
@@ -479,7 +479,7 @@ assert_eq "canon: opted out, a plan edited: a fresh clone covers nothing" "$(cov
 # A spec that is there and unusable degrades the block to its object key
 # (SPEC.md, "Producing"): no input lines, no canon line, nothing under Kc.
 canon_remote_repo
-mkdir -p "$R/.github"; printf 'ci-fmt src/*.rs\n' > "$R/.github/attest-inputs"
+mkdir -p "$R/.github"; printf 'ci-fmt src/*.rs\n' > "$R/.github/greensummit-inputs"
 git -C "$R" add -A; git -C "$R" commit -qm bad-spec; git -C "$R" push -q origin HEAD:refs/heads/main
 sign "$WORK/key" --gates "ci-fmt"
 expect "canon: an invalid spec still signs and pushes" 0 "status=pushed|signed=true|pushed=true|gates=ci-fmt|inputs=0/0"
@@ -508,7 +508,7 @@ make_remote_repo_plain() {
 }
 
 # --- origin's mirror (1.4.0) -------------------------------------------------
-# refs/notes/greengate-attest[-inputs] (and the LEGACY amont-attest pair)
+# refs/notes/greensummit[-inputs]
 # follow origin, which is the only place an
 # attestation can be revoked. SPEC.md, "Lookup".
 
@@ -518,16 +518,9 @@ explain_in() { # dir [flags...]
     # shellcheck disable=SC2046,SC2086  # the command line word-splits on purpose
     ERR=$(cd "$dir" && set -- $(explain_impl) "$@" && "$@" 2>&1 > /dev/null < /dev/null)
 }
-# The producers write the GREEN names, whose state is the notes= pair; a case
-# that builds a LEGACY mirror by hand reads the legacy_notes= pair, shown as
-# notes= too.
 gha_in() { # dir [flags...] -> the notes= and inputs_notes= lines, joined
     run_impl "$1" --github-output "${@:2}"
     printf '%s' "$GOT" | tr ' ' '\n' | grep -E '^(inputs_)?notes=' | tr '\n' ' ' | sed 's/ $//'
-}
-gha_legacy_in() { # dir [flags...] -> the legacy_notes= and legacy_inputs_notes= lines, joined
-    run_impl "$1" --github-output "${@:2}"
-    printf '%s' "$GOT" | tr ' ' '\n' | grep -E '^legacy_(inputs_)?notes=' | sed 's/^legacy_//' | tr '\n' ' ' | sed 's/ $//'
 }
 has_ref() { git -C "$1" rev-parse --verify --quiet "$2" > /dev/null 2>&1; }
 
@@ -546,23 +539,23 @@ assert_eq "the signer's next push does not bring it back" "$(covered_in_clone)" 
 # has nothing. The mirror is deleted, loudly, with a restore command that works.
 make_remote_repo_plain
 append_note "$R" "$(payload_for "$R" ci-fmt "$PLATFORM")" "$WORK/key"
-old=$(git -C "$R" rev-parse refs/notes/amont-attest)
+old=$(git -C "$R" rev-parse "refs/notes/$WREF")
 check "a stale mirror with nothing on origin covers nothing" "" "$R"
 make_remote_repo_plain
 append_note "$R" "$(payload_for "$R" ci-fmt "$PLATFORM")" "$WORK/key"
-old=$(git -C "$R" rev-parse refs/notes/amont-attest)
+old=$(git -C "$R" rev-parse "refs/notes/$WREF")
 explain_in "$R"
-want="attest: origin has no refs/notes/amont-attest; deleted the local mirror (was $old); restore: git update-ref refs/notes/amont-attest $old"
+want="greensummit: origin has no refs/notes/$WREF; deleted the local mirror (was $old); restore: git update-ref refs/notes/$WREF $old"
 case $ERR in *"$want"*) ok "the deletion is announced with its restore command" ;; *) fail "the deletion is announced with its restore command" "$ERR" ;; esac
-git -C "$R" update-ref refs/notes/amont-attest "$old"
-assert_eq "...and the restore command brings the ref back" "$(git -C "$R" rev-parse refs/notes/amont-attest)" "$old"
+git -C "$R" update-ref "refs/notes/$WREF" "$old"
+assert_eq "...and the restore command brings the ref back" "$(git -C "$R" rev-parse "refs/notes/$WREF")" "$old"
 
 # Origin reachable, neither ref there: both absent, both mirrors deleted.
 make_remote_repo_plain
 append_note "$R" "$(payload_for "$R" ci-fmt "$PLATFORM")" "$WORK/key"
-git -C "$R" notes --ref amont-attest-inputs add -m x HEAD 2> /dev/null
-assert_eq "origin with neither ref" "$(gha_legacy_in "$R")" "notes=absent inputs_notes=absent"
-if has_ref "$R" refs/notes/amont-attest || has_ref "$R" refs/notes/amont-attest-inputs; then
+git -C "$R" notes --ref "$WREF-inputs" add -m x HEAD 2> /dev/null
+assert_eq "origin with neither ref" "$(gha_in "$R")" "notes=absent inputs_notes=absent"
+if has_ref "$R" "refs/notes/$WREF" || has_ref "$R" "refs/notes/$WREF-inputs"; then
     fail "...both mirrors deleted" "one survived"
 else
     ok "...both mirrors deleted"
@@ -581,18 +574,16 @@ git -C "$R" remote set-url origin "file:///nonexistent/attest-origin.git"
 check "an unreachable origin: the mirror is not judged" "" "$R"
 assert_eq "...notes says so" "$(gha_in "$R")" "notes=unreachable inputs_notes=unreachable"
 explain_in "$R"
-want="attest: cannot fetch refs/notes/greengate-attest from origin (no credentials? persist-credentials: false?); local mirror not judged, running everything
-attest: cannot fetch refs/notes/greengate-attest-inputs from origin (no credentials? persist-credentials: false?); local mirror not judged, running everything
-attest: cannot fetch refs/notes/amont-attest from origin (no credentials? persist-credentials: false?); local mirror not judged, running everything
-attest: cannot fetch refs/notes/amont-attest-inputs from origin (no credentials? persist-credentials: false?); local mirror not judged, running everything"
-assert_eq "...with the exact reasons first, one pair per name set" "$(printf '%s\n' "$ERR" | head -4)" "$want"
+want="greensummit: cannot fetch refs/notes/greensummit from origin (no credentials? persist-credentials: false?); local mirror not judged, running everything
+greensummit: cannot fetch refs/notes/greensummit-inputs from origin (no credentials? persist-credentials: false?); local mirror not judged, running everything"
+assert_eq "...with the exact reasons first, one per ref" "$(printf '%s\n' "$ERR" | head -2)" "$want"
 if has_ref "$R" "refs/notes/$WREF"; then ok "...and the mirror is kept for when origin answers"; else fail "...and the mirror is kept" "deleted"; fi
 
 # An unpushed block beside an ignored one says how to include it.
 make_remote_repo_plain
 sign "$WORK/key" --gates ci-fmt --no-push > /dev/null 2>&1
 explain_in "$R"
-case $ERR in *"attest: refs/notes/attest-local/$WREF holds unpushed blocks, ignored without --include-local"*) ok "ignored unpushed blocks are named" ;; *) fail "ignored unpushed blocks are named" "$ERR" ;; esac
+case $ERR in *"greensummit: refs/notes/greensummit-local/$WREF holds unpushed blocks, ignored without --include-local"*) ok "ignored unpushed blocks are named" ;; *) fail "ignored unpushed blocks are named" "$ERR" ;; esac
 
 # A stalled http origin — connection accepted, nothing ever sent back — is
 # bounded: at most two remote calls, each cut off after 10 s of silence.
@@ -634,7 +625,7 @@ else
     sign "$WORK/key" --gates ci-fmt > /dev/null 2>&1
     : > "$WORK/calls"
     t0=$(date +%s)
-    got=$(ATTEST_REAL_GIT=$(command -v git) ATTEST_FAULT=hang ATTEST_FAULT_LOG="$WORK/calls" PATH="$WORK/fault:$PATH" gha_in "$R")
+    got=$(GREENSUMMIT_REAL_GIT=$(command -v git) GREENSUMMIT_FAULT=hang GREENSUMMIT_FAULT_LOG="$WORK/calls" PATH="$WORK/fault:$PATH" gha_in "$R")
     t=$(( $(date +%s) - t0 ))
     assert_eq "a silent origin is cut off by the deadline" "$got" "notes=unreachable inputs_notes=unreachable"
     assert_eq "...after one remote call" "$(wc -l < "$WORK/calls" | tr -d ' ')" 1
@@ -710,25 +701,25 @@ if [ "$OS" = windows ]; then
 else
 make_remote_repo_plain
 sign "$WORK/key" --gates ci-fmt > /dev/null 2>&1
-git -C "$R" update-ref refs/attest-tmp/4194305/amont-attest HEAD
-git -C "$R" update-ref "refs/attest-tmp/$$/amont-attest" HEAD
+git -C "$R" update-ref refs/greensummit-tmp/4194305/amont-attest HEAD
+git -C "$R" update-ref "refs/greensummit-tmp/$$/amont-attest" HEAD
 run_impl "$R"
 assert_eq "a dead run's throwaway is swept, a live one's kept" \
-    "$(git -C "$R" for-each-ref --format='%(refname)' refs/attest-tmp/ | tr '\n' ' ')" "refs/attest-tmp/$$/amont-attest "
-git -C "$R" update-ref -d "refs/attest-tmp/$$/amont-attest"
+    "$(git -C "$R" for-each-ref --format='%(refname)' refs/greensummit-tmp/ | tr '\n' ' ')" "refs/greensummit-tmp/$$/amont-attest "
+git -C "$R" update-ref -d "refs/greensummit-tmp/$$/amont-attest"
 fi
 
 # The two implementations say the same thing, line for line, about an origin
-# that does not answer. ATTEST_GIT_ATTEST names the binary (Makefile sets it).
-if [ -n "${ATTEST_GIT_ATTEST:-}" ] && [ -x "$ATTEST_GIT_ATTEST" ]; then
+# that does not answer. GREENSUMMIT_BIN names the binary (Makefile sets it).
+if [ -n "${GREENSUMMIT_BIN:-}" ] && [ -x "$GREENSUMMIT_BIN" ]; then
     make_remote_repo_plain
     sign "$WORK/key" --gates ci-fmt > /dev/null 2>&1
     git -C "$R" remote set-url origin "file:///nonexistent/attest-origin.git"
     sh_err=$(cd "$R" && bash "$VERIFY" 2>&1 > /dev/null < /dev/null)
-    rs_err=$(cd "$R" && "$ATTEST_GIT_ATTEST" explain 2>&1 > /dev/null < /dev/null)
+    rs_err=$(cd "$R" && "$GREENSUMMIT_BIN" explain 2>&1 > /dev/null < /dev/null)
     assert_eq "both implementations' stderr is identical for an unreachable origin" "$rs_err" "$sh_err"
 else
-    printf '  SKIP  both implementations'"'"' stderr is identical (ATTEST_GIT_ATTEST not set)\n'
+    printf '  SKIP  both implementations'"'"' stderr is identical (GREENSUMMIT_BIN not set)\n'
 fi
 
 # Never a prompt: every remote call runs with prompts off and ssh in batch
@@ -740,7 +731,7 @@ if [ -n "$native" ] && [ "$OS" = windows ]; then
 else
     mkdir -p "$WORK/fault"; tr -d '\r' < "$HERE/tests/fault/git" > "$WORK/fault/git"; chmod +x "$WORK/fault/git"
     : > "$WORK/fault.log"
-    ATTEST_REAL_GIT=$(command -v git) ATTEST_FAULT=env ATTEST_FAULT_LOG="$WORK/fault.log" GIT_SSH_COMMAND='' \
+    GREENSUMMIT_REAL_GIT=$(command -v git) GREENSUMMIT_FAULT=env GREENSUMMIT_FAULT_LOG="$WORK/fault.log" GIT_SSH_COMMAND='' \
         PATH="$WORK/fault:$PATH" run_impl "$R"
     seen=$(sort -u "$WORK/fault.log" | tr '\n' '|')
     assert_eq "remote calls never prompt" "$seen" "0|ssh -o BatchMode=yes -o ConnectTimeout=10|"
@@ -757,7 +748,7 @@ trap 'restore_perm; rm -rf "$WORK"' EXIT
 trap 'restore_perm; exit 130' INT TERM
 chmod a-w "$R/.git/refs/notes" 2> /dev/null
 if [ "$OS" != windows ] && ! git -C "$R" update-ref -d refs/notes/attest-scratch 2> /dev/null; then
-    assert_eq "an undeletable mirror is not judged" "$(gha_legacy_in "$R")" "notes=undeletable inputs_notes=absent"
+    assert_eq "an undeletable mirror is not judged" "$(gha_in "$R")" "notes=undeletable inputs_notes=absent"
     check "...and covers nothing" "" "$R"
 else
     printf '  SKIP  an undeletable mirror (a read-only refs dir still deletes here)\n'
@@ -778,24 +769,23 @@ assert_eq "canon: the inputs ref deleted too: nothing" "$(covered_in_clone)" ""
 
 # The two signers make the same block: the same payload, and with the same
 # ed25519 key the same signature, so whichever signs second finds it there.
-# ATTEST_GIT_ATTEST names the binary (Makefile sets it).
-if [ -n "${ATTEST_GIT_ATTEST:-}" ] && [ -x "$ATTEST_GIT_ATTEST" ]; then
+# GREENSUMMIT_BIN names the binary (Makefile sets it).
+if [ -n "${GREENSUMMIT_BIN:-}" ] && [ -x "$GREENSUMMIT_BIN" ]; then
     spec_repo 'ci-test src Cargo.toml ?build.rs'
     (cd "$R" && bash "$SIGN" --gates "ci-test ci-fmt" --platform x86_64-linux --no-push < "$WORK/key" > /dev/null 2>&1)
-    OUT=$(cd "$R" && "$ATTEST_GIT_ATTEST" sign --gates "ci-test ci-fmt" --platform x86_64-linux --no-push --github-output < "$WORK/key" 2> "$WORK/err"); RC=$?
+    OUT=$(cd "$R" && "$GREENSUMMIT_BIN" sign --gates "ci-test ci-fmt" --platform x86_64-linux --no-push --github-output < "$WORK/key" 2> "$WORK/err"); RC=$?
     ERR=$(cat "$WORK/err")
-    expect "git-attest sign after sign.sh: the identical block is already there" 0 \
+    expect "greensummit sign after sign.sh: the identical block is already there" 0 \
         "status=already-present|signed=false|pushed=false|gates=ci-test ci-fmt|inputs=1/1"
 fi
 
-# A block the 1.9.0 signer wrote, under the LEGACY names, is still covered
-# during the window (ADR-0068): tests/compat/sign-1.9.0.sh is that release's
-# sign/sign.sh, byte for byte.
+# A block the 1.9.0 signer wrote, under the 1.x names, is absent to 2.0.0:
+# tests/compat/sign-1.9.0.sh is that release's sign/sign.sh, byte for byte.
 make_remote_repo
 (cd "$R" && bash "$HERE/tests/compat/sign-1.9.0.sh" --gates ci-fmt < "$WORK/key" > /dev/null 2>&1)
-assert_eq "1.9.0 signed under the LEGACY names" \
+assert_eq "1.9.0 signed under the 1.x names" \
     "$(git --git-dir="$ORIGIN" for-each-ref --format='%(refname)' refs/notes/ | tr '\n' ' ')" \
     "refs/notes/amont-attest refs/notes/amont-attest-inputs "
-assert_eq "...and a fresh clone still covers its block" "$(covered_in_clone)" ci-fmt
+assert_eq "...and a fresh clone covers nothing of it" "$(covered_in_clone)" ""
 
 summary

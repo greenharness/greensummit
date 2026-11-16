@@ -28,10 +28,10 @@
 # this design's worst property: when a skip does not happen, nothing tells you
 # whether the attestation was absent, stale, signed by the wrong key, or minted
 # on another platform. A CI log is exactly the place to spend four lines saying
-# which. `--quiet` does not hide `attest: verified under <namespace>`, said for
+# which. `--quiet` does not hide `greensummit: verified under <namespace>`, said for
 # each name set a covering block verified under, nor a deleted mirror.
 #
-# `--include-local` also reads refs/notes/attest-local/*: blocks signed with
+# `--include-local` also reads refs/notes/greensummit-local/*: blocks signed with
 # `sign.sh --no-push` that never reached origin, so origin cannot revoke them.
 # refs/notes/{greengate,amont}-attest[-inputs] are ORIGIN'S MIRROR: fetched,
 # deleted when origin no longer has them, and not read at all when origin is
@@ -46,30 +46,22 @@
 # shellcheck disable=SC2329
 set -uf
 
-# Two complete name sets (SPEC.md, "Names"), read in this order: a note is read
-# WHOLE under one of them, so its header, SSH namespace, inputs ref and
-# fingerprint domains never mix. Writers (sign/sign.sh) write the green set
-# since 1.10.0; the legacy set is read until the census (2.0.0).
-SETS="green legacy"
-use_set() { # green | legacy
+# The one name set (SPEC.md, "Names"): a note is read WHOLE under it, so its
+# header, SSH namespace, inputs ref and fingerprint domains never mix. Notes
+# under any other name are absent: there is no fallback read.
+SETS="summit"
+use_set() { # summit
     case $1 in
-        green)
-            FORMAT=greengate-attest-v2
-            NOTES_REF=greengate-attest
-            INPUTS_REF=greengate-attest-inputs
-            NAMESPACE=greengate-attest
-            INPUT_DOMAIN=greengate-attest-input
-            CANON_DOMAIN=greengate-attest-canon ;;
-        legacy)
-            FORMAT=amont-attest-v2
-            NOTES_REF=amont-attest
-            INPUTS_REF=amont-attest-inputs
-            NAMESPACE=amont-attest
-            INPUT_DOMAIN=amont-attest-input
-            CANON_DOMAIN=amont-attest-canon ;;
+        summit)
+            FORMAT=greensummit-v2
+            NOTES_REF=greensummit
+            INPUTS_REF=greensummit-inputs
+            NAMESPACE=greensummit
+            INPUT_DOMAIN=greensummit-input
+            CANON_DOMAIN=greensummit-canon ;;
     esac
 }
-use_set legacy
+use_set summit
 
 signers=; principal=; platform=; anywhere=; quiet=; mode=plain; include_local=
 
@@ -89,14 +81,14 @@ while [ $# -gt 0 ]; do
 done
 
 # Deprecated since 1.7.0 (decisions ADR-0037): one line on stderr, even under
-# --quiet, and stdout is untouched. The actions set ATTEST_NO_DEPRECATION when
+# --quiet, and stdout is untouched. The actions set GREENSUMMIT_NO_DEPRECATION when
 # they fall back here, having already warned why.
-if [ -z "${ATTEST_NO_DEPRECATION:-}" ]; then
-    msg='verify.sh is deprecated and goes away in 2.0.0; run git-attest covered, which takes the same flags and prints the same lines'
+if [ -z "${GREENSUMMIT_NO_DEPRECATION:-}" ]; then
+    msg='verify.sh is deprecated and goes away in 2.0.0; run greensummit covered, which takes the same flags and prints the same lines'
     if [ "${GITHUB_ACTIONS:-}" = true ]; then
-        printf '::warning title=attest::%s\n' "$msg" >&2
+        printf '::warning title=greensummit::%s\n' "$msg" >&2
     else
-        printf 'attest: %s\n' "$msg" >&2
+        printf 'greensummit: %s\n' "$msg" >&2
     fi
 fi
 
@@ -108,11 +100,11 @@ note() {
     [ -n "$quiet" ] && return 0
     [ "$1" = "$last_note" ] && return 0
     last_note=$1
-    printf 'attest: %s\n' "$1" >&2
+    printf 'greensummit: %s\n' "$1" >&2
 }
 # A line that reports a change to the repository's refs, which --quiet does
 # not hide: data went away, and the line says how to bring it back.
-note_always() { printf 'attest: %s\n' "$1" >&2; }
+note_always() { printf 'greensummit: %s\n' "$1" >&2; }
 
 # Gate names as a JSON array.
 #
@@ -156,10 +148,8 @@ to_json() {
 #
 #   covered=pre-push-cargo-test        (legacy; a SUBSTRING match downstream)
 #   gates=["pre-push-cargo-test"]      (use this one)
-#   notes=fetched                      (refs/notes/greengate-attest)
-#   inputs_notes=absent                (refs/notes/greengate-attest-inputs)
-#   legacy_notes=fetched               (refs/notes/amont-attest)
-#   legacy_inputs_notes=absent         (refs/notes/amont-attest-inputs)
+#   notes=fetched                      (refs/notes/greensummit)
+#   inputs_notes=absent                (refs/notes/greensummit-inputs)
 #
 # each one of fetched, absent, unreachable, unwritable, undeletable, no-origin — or empty
 # when the verifier stopped before reading any notes.
@@ -171,12 +161,11 @@ emit() {
         plain) [ -z "$1" ] || printf '%s\n' "$1" ;;
         json)  to_json "$1" ;;
         gha)   printf 'covered=%s\n' "$1"; printf 'gates=%s\n' "$(to_json "$1")"
-               printf 'notes=%s\n' "$st_main_green"; printf 'inputs_notes=%s\n' "$st_inputs_green"
-               printf 'legacy_notes=%s\n' "$st_main_legacy"; printf 'legacy_inputs_notes=%s\n' "$st_inputs_legacy" ;;
+               printf 'notes=%s\n' "$st_main_summit"; printf 'inputs_notes=%s\n' "$st_inputs_summit" ;;
     esac
 }
 
-st_main=; st_inputs=; st_main_green=; st_inputs_green=; st_main_legacy=; st_inputs_legacy=
+st_main=; st_inputs=; st_main_summit=; st_inputs_summit=
 uncovered() { note "$1"; emit ""; exit 0; }
 
 command -v git        > /dev/null 2>&1 || uncovered "no git on PATH"
@@ -260,7 +249,7 @@ remote_git() {
 
 # Where fetches land before they become the mirror: outside refs/notes/, one
 # directory per process id, so no notes push or pruning fetch touches them.
-TMP_NS=refs/attest-tmp/
+TMP_NS=refs/greensummit-tmp/
 tmp_ref() { printf '%s%s/%s' "$TMP_NS" "$$" "$1"; }
 
 # Remove the throwaways of runs killed before their cleanup — only those whose
@@ -338,8 +327,8 @@ sync_mirrors() {
         listing=$(remote_git ls-remote --exit-code origin "refs/notes/$NOTES_REF" "refs/notes/$INPUTS_REF" 2> /dev/null); rc=$?
         case $rc in
             0)
-                printf '%s\n' "$listing" | ATTEST_R="refs/notes/$NOTES_REF" awk '$2 == ENVIRON["ATTEST_R"] { f = 1 } END { exit !f }' && has_main=1
-                printf '%s\n' "$listing" | ATTEST_R="refs/notes/$INPUTS_REF" awk '$2 == ENVIRON["ATTEST_R"] { f = 1 } END { exit !f }' && has_inputs=1
+                printf '%s\n' "$listing" | GREENSUMMIT_R="refs/notes/$NOTES_REF" awk '$2 == ENVIRON["GREENSUMMIT_R"] { f = 1 } END { exit !f }' && has_main=1
+                printf '%s\n' "$listing" | GREENSUMMIT_R="refs/notes/$INPUTS_REF" awk '$2 == ENVIRON["GREENSUMMIT_R"] { f = 1 } END { exit !f }' && has_inputs=1
                 [ -n "$has_main" ] && want+=("+refs/notes/$NOTES_REF:$(tmp_ref "$NOTES_REF")")
                 [ -n "$has_inputs" ] && want+=("+refs/notes/$INPUTS_REF:$(tmp_ref "$INPUTS_REF")")
                 rc=1
@@ -389,50 +378,37 @@ say_lock() { # ref
     [ -e "$path" ] && note "a git that was killed left a lock on refs/notes/$1; if no git is running: rm $path"
     return 0
 }
-# The refs each lookup reads, per name set, in order: the mirror, then the
-# unpushed blocks. A local ref pairs with its own set's names only.
+# The refs each lookup reads, in order: the mirror, then the unpushed blocks.
 judged() { case $1 in fetched | no-origin) return 0 ;; *) return 1 ;; esac; }
-refs_main_green=; refs_inputs_green=; refs_main_legacy=; refs_inputs_legacy=
+refs_main_summit=; refs_inputs_summit=
 for s in $SETS; do
     use_set "$s"
-    # An origin that did not answer for the first set will not for the second:
-    # asking again would only double the wait.
-    # holds-until: the census (2.0.0) drops the legacy set. Until a
-    # repository's first green note (writers write them since 1.10.0) origin
-    # has no greengate ref, so the green fetch fails and costs an ls-remote,
-    # and the legacy set is a second fetch.
-    if [ "$s" = legacy ] && { [ -n "$timed_out" ] || { [ "$st_main_green" = unreachable ] && [ "$st_inputs_green" = unreachable ]; }; }; then
-        st_main=unreachable; st_inputs=unreachable
-    else
-        timed_out=
-        sync_mirrors
-    fi
+    timed_out=
+    sync_mirrors
     say_state "$NOTES_REF" "$st_main"; say_lock "$NOTES_REF"
     say_state "$INPUTS_REF" "$st_inputs"; say_lock "$INPUTS_REF"
     if [ -z "$include_local" ]; then
         for r in "$NOTES_REF" "$INPUTS_REF"; do
-            [ -n "$(git notes --ref "attest-local/$r" list 2> /dev/null | head -1)" ] &&
-                note "refs/notes/attest-local/$r holds unpushed blocks, ignored without --include-local"
+            [ -n "$(git notes --ref "greensummit-local/$r" list 2> /dev/null | head -1)" ] &&
+                note "refs/notes/greensummit-local/$r holds unpushed blocks, ignored without --include-local"
         done
     fi
     rm_=; ri_=
     judged "$st_main" && rm_=$NOTES_REF
     judged "$st_inputs" && ri_=$INPUTS_REF
     if [ -n "$include_local" ]; then
-        rm_="$rm_ attest-local/$NOTES_REF"
-        ri_="$ri_ attest-local/$INPUTS_REF"
+        rm_="$rm_ greensummit-local/$NOTES_REF"
+        ri_="$ri_ greensummit-local/$INPUTS_REF"
     fi
     case $s in
-        green) st_main_green=$st_main; st_inputs_green=$st_inputs; refs_main_green=$rm_; refs_inputs_green=$ri_ ;;
-        legacy) st_main_legacy=$st_main; st_inputs_legacy=$st_inputs; refs_main_legacy=$rm_; refs_inputs_legacy=$ri_ ;;
+        summit) st_main_summit=$st_main; st_inputs_summit=$st_inputs; refs_main_summit=$rm_; refs_inputs_summit=$ri_ ;;
     esac
 done
 # The refs of one set, into REFS_MAIN and REFS_INPUTS, with its names in force.
-use_refs() { # green | legacy
+use_refs() { # summit
     use_set "$1"
     case $1 in
-        green) REFS_MAIN=$refs_main_green; REFS_INPUTS=$refs_inputs_green ;;
-        legacy) REFS_MAIN=$refs_main_legacy; REFS_INPUTS=$refs_inputs_legacy ;;
+        summit) REFS_MAIN=$refs_main_summit; REFS_INPUTS=$refs_inputs_summit ;;
     esac
 }
 
@@ -440,7 +416,7 @@ head_tree=$(git rev-parse 'HEAD^{tree}' 2> /dev/null) || uncovered "cannot resol
 
 # platform-table:start
 # This machine as <arch>-<os>, in the names Rust's std::env::consts uses, so
-# the shell and git-attest agree. Kept byte-identical in verify.sh,
+# the shell and greensummit agree. Kept byte-identical in verify.sh,
 # sign/sign.sh and tests/lib.sh; `make lint` checks that. A machine this
 # misnames can only lose a skip, never gain one.
 detect_platform() {
@@ -482,10 +458,10 @@ detect_platform() {
 # sign/sign.sh; `make lint` checks that. Both read $tmp and, if set, $root.
 
 # Does tree $1 opt out of the canonical route? Two committed forms, either one
-# enough: `@plan-exempt off` in its attest-inputs (1.6.0; blanks around and
+# enough: `@plan-exempt off` in its greensummit-inputs (1.6.0; blanks around and
 # between the two words, nothing else, found even in a spec that is otherwise
 # invalid, since off only narrows), and `set planExempt off` in its amont.conf,
-# read until 2.0.0 with one tolerant reading shared with git-attest and amont:
+# read until 2.0.0 with one tolerant reading shared with greensummit and amont:
 # strip CR, trim blanks, compare the three words case-insensitively.
 # Exit 0: off, by the directive. Exit 3: off, by amont.conf alone (deprecated).
 # Exit 1: on. Exit 2: unreadable, a failing ls-tree or a listed file that
@@ -493,7 +469,7 @@ detect_platform() {
 # differs.
 plan_exempt_off() {
     local listing p
-    for p in .forgejo/attest-inputs .github/attest-inputs; do
+    for p in .forgejo/greensummit-inputs .github/greensummit-inputs; do
         listing=$(git -C "${root:-.}" ls-tree --full-tree "$1" -- "$p" 2> /dev/null) || return 2
         [ -n "$listing" ] || continue
         git -C "${root:-.}" cat-file blob "$1:$p" > "$tmp/opt-out" 2> /dev/null || return 2
@@ -560,7 +536,7 @@ sig_file=$tmp/sig
 # `-v`: awk processes backslash escapes in a `-v` assignment, so a signed gate
 # called `te\163t` would compare equal to `test`. ENVIRON is POSIX, and BSD
 # awk, mawk and gawk all pass it through untouched.
-field() { printf '%s\n' "$2" | ATTEST_K=$1 awk '$1 == ENVIRON["ATTEST_K"] { sub(/^[^ ]* */, ""); print; exit }'; }
+field() { printf '%s\n' "$2" | GREENSUMMIT_K=$1 awk '$1 == ENVIRON["GREENSUMMIT_K"] { sub(/^[^ ]* */, ""); print; exit }'; }
 
 # How many blocks of one note are read, and how many signatures one run
 # verifies over every candidate. Every block costs two ssh-keygen runs, and
@@ -638,7 +614,7 @@ platform_matches() {
 # ---------------------------------------------------------------------------
 # Input fingerprints (1.3.0). SPEC.md, "Input fingerprints".
 #
-# A committed `.github/attest-inputs` (or `.forgejo/`) names the paths each
+# A committed `.github/greensummit-inputs` (or `.forgejo/`) names the paths each
 # gate reads. A gate's FINGERPRINT on a tree is `git hash-object` over the
 # `git ls-tree -r -z --full-tree` listing of those paths (plus a few implicit
 # ones, the spec file itself first). Equal fingerprints mean identical inputs,
@@ -656,14 +632,14 @@ platform_matches() {
 spec_ok=
 load_spec() {
     local present='' p n bad
-    for p in .forgejo/attest-inputs .github/attest-inputs; do
+    for p in .forgejo/greensummit-inputs .github/greensummit-inputs; do
         git -C "$root" cat-file -e "$head_tree:$p" 2> /dev/null && present="$present $p"
     done
     # shellcheck disable=SC2086  # the list is built from fixed names
     set -- $present
     [ $# -gt 0 ] || return 0
     if [ $# -gt 1 ]; then
-        note "both .forgejo/attest-inputs and .github/attest-inputs exist; input fingerprints disabled"
+        note "both .forgejo/greensummit-inputs and .github/greensummit-inputs exist; input fingerprints disabled"
         return 0
     fi
     p=$1
@@ -730,7 +706,7 @@ load_spec() {
 load_spec
 
 # The paths of gate $1 per the spec, space-separated, or nothing.
-spec_paths() { ATTEST_G=$1 awk -F '\t' '$1 == ENVIRON["ATTEST_G"] { print $2; exit }' "$tmp/spec.gates"; }
+spec_paths() { GREENSUMMIT_G=$1 awk -F '\t' '$1 == ENVIRON["GREENSUMMIT_G"] { print $2; exit }' "$tmp/spec.gates"; }
 
 # A gate's declared paths, as stored: `?p` marks a path that may be absent.
 # plain_paths strips the marker; required_paths keeps only the unmarked ones.
@@ -765,7 +741,7 @@ fp_head() {
                 # exit status of ls-tree is checked before anything is hashed,
                 # because a listing that ended early must never fingerprint.
                 # shellcheck disable=SC2046,SC2086  # same: blank-free tokens, deliberately split
-                set -- .forgejo/attest-inputs .github/attest-inputs .gitmodules \
+                set -- .forgejo/greensummit-inputs .github/greensummit-inputs .gitmodules \
                     $(for tok in $plain; do printf '.gitattributes\n'; d=${tok%/*}; while [ "$d" != "$tok" ]; do printf '%s/.gitattributes\n' "$d"; tok=$d; d=${tok%/*}; done; done | sort -u) \
                     $plain
                 git -C "$root" ls-tree -r -z --full-tree "$head_tree" -- "$@" > "$tmp/listing" 2> /dev/null; listing_rc=$?
@@ -781,8 +757,8 @@ fp_head() {
 # The fingerprint a block claims for gate $2 in payload $1: an `input <gate>
 # <fp>` line of exactly three fields, first occurrence wins.
 input_fp() {
-    printf '%s\n' "$1" | ATTEST_G=$2 awk \
-        'NF == 3 && $1 == "input" && $2 == ENVIRON["ATTEST_G"] && $3 ~ /^[0-9a-f]+$/ && (length($3) == 40 || length($3) == 64) { print $3; exit }'
+    printf '%s\n' "$1" | GREENSUMMIT_G=$2 awk \
+        'NF == 3 && $1 == "input" && $2 == ENVIRON["GREENSUMMIT_G"] && $3 ~ /^[0-9a-f]+$/ && (length($3) == 40 || length($3) == 64) { print $3; exit }'
 }
 
 # The synthetic note key for (gate, fingerprint).
@@ -798,12 +774,12 @@ canon_here() {
         case $? in
             0) note "planExempt is off here; canonical trees are not used" ;;
             3) note "planExempt is off here; canonical trees are not used"
-               note "deprecated: planExempt in amont.conf; also write @plan-exempt off in attest-inputs" ;;
+               note "deprecated: planExempt in amont.conf; also write @plan-exempt off in greensummit-inputs" ;;
             1) canon_of "$head_tree" > "$tmp/canon.here" 2> /dev/null || {
                    : > "$tmp/canon.here"
                    note "cannot compute the canonical tree; canonical trees are not used"
                } ;;
-            *) note "cannot read amont.conf or attest-inputs; canonical trees are not used" ;;
+            *) note "cannot read amont.conf or greensummit-inputs; canonical trees are not used" ;;
         esac
     fi
     cat "$tmp/canon.here"
@@ -1030,7 +1006,7 @@ EOF
 }
 
 # How a note is named in the log: unpushed blocks say so.
-label() { case $1 in attest-local/*) printf '%s (unpushed)' "$2" ;; *) printf '%s' "$2" ;; esac; }
+label() { case $1 in greensummit-local/*) printf '%s (unpushed)' "$2" ;; *) printf '%s' "$2" ;; esac; }
 
 # The TREE first: it is what the signature covers, so it is the only key that
 # survives a squash-merge, an amend or a rebase. HEAD and HEAD^2 follow for
@@ -1038,8 +1014,6 @@ label() { case $1 in attest-local/*) printf '%s (unpushed)' "$2" ;; *) printf '%
 # a PR checkout is a merge commit whose second parent is the pushed tip.
 for candidate in "$head_tree" HEAD HEAD^2; do
     object=$(git rev-parse --verify --quiet "$candidate" 2> /dev/null) || continue
-    # Per object, the greengate ref first; the amont ref only when the
-    # greengate refs hold no note for it (a note is read whole under one name).
     for s in $SETS; do
         use_refs "$s"; found=
         for r in $REFS_MAIN; do
