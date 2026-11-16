@@ -2,7 +2,7 @@
 # The contract, as fixtures. Run against ANY implementation:
 #
 #   tests/conformance.sh ./verify.sh
-#   tests/conformance.sh "./target/release/git-attest covered"
+#   tests/conformance.sh "./target/release/greensummit covered"
 #   tests/conformance.sh tests/legacy.sh        # the shell attest used to ship
 #
 # The implementation is invoked in a prepared repository with the same flags
@@ -75,7 +75,7 @@ check "signed by a key not in allowed_signers" "" "$R"
 attach_note "$R" "$(payload_for "$R" pre-push-cargo-test "$PLATFORM")" "$WORK/key"
 check "platform mismatch" "" "$R" --platform s390x-aix
 
-attach_note "$R" "$(printf 'amont-attest-v2\ntree %s\ngates pre-push-cargo-test\nplatform %s\namont 1.23.0\n' \
+attach_note "$R" "$(printf 'greensummit-v2\ntree %s\ngates pre-push-cargo-test\nplatform %s\ngreengate 1.23.0\n' \
     0000000000000000000000000000000000000000 "$PLATFORM")" "$WORK/key"
 check "tree mismatch" "" "$R"
 
@@ -96,7 +96,7 @@ check "missing platform line, --platform any" "" "$R" --platform any
 check_usage "unknown flag is a usage error" "$R" --platfrom any
 
 attach_note "$R" "$(payload_for "$R" pre-push-cargo-test "$PLATFORM")" "$WORK/key"
-git -C "$R" notes --ref amont-attest add -f -m "$(payload_for "$R" pre-push-cargo-test "$PLATFORM")" \
+git -C "$R" notes --ref "$F_REF" add -f -m "$(payload_for "$R" pre-push-cargo-test "$PLATFORM")" \
     "$(git -C "$R" rev-parse 'HEAD^{tree}')" 2> /dev/null
 check "payload with no signature block" "" "$R"
 
@@ -104,8 +104,8 @@ check "payload with no signature block" "" "$R"
 make_repo "$R" signer@example.org "$WORK/key"
 attach_note "$R" "$(payload_for "$R" pre-push-cargo-test "$PLATFORM")" "$WORK/key"
 tree=$(git -C "$R" rev-parse 'HEAD^{tree}')
-body=$(git -C "$R" notes --ref amont-attest show "$tree")
-git -C "$R" notes --ref amont-attest add -f \
+body=$(git -C "$R" notes --ref "$F_REF" show "$tree")
+git -C "$R" notes --ref "$F_REF" add -f \
     -m "$(printf '%s' "$body" | sed 's/gates pre-push-cargo-test/gates pre-push-cargo-test pre-push-audit-rust/')" "$tree" 2> /dev/null
 check "payload edited after signing" "" "$R"
 
@@ -158,7 +158,7 @@ check "os-only is not an arch match" "" "$R" --platform x86_64
 check "a dashed platform is still exact" "" "$R" --platform aarch64-linux
 
 # The names are Rust's std::env::consts names, whatever uname says, so a
-# note git-attest signs on a machine is one verify.sh accepts on it (1.4.0).
+# note greensummit signs on a machine is one verify.sh accepts on it (1.4.0).
 plat_case() { # name "S M O" isainfo platform
     make_repo "$R" signer@example.org "$WORK/key"
     attach_note "$R" "$(payload_for "$R" g1 "$4")" "$WORK/key"
@@ -184,7 +184,7 @@ check "--anywhere with two names" "ci-fmt pre-push-cargo-test" "$R" --anywhere "
 check "--anywhere does not admit an unlisted name" "" "$R" --anywhere ci-clippy
 attach_note "$R" "$(payload_for "$R" ci-fmt s390x-aix)" "$WORK/other"
 check "--anywhere never rescues an unverifiable block" "" "$R" --anywhere ci-fmt
-attach_note "$R" "$(printf 'amont-attest-v2\ntree %s\ngates ci-fmt\nplatform s390x-aix\namont 1.23.0\n' \
+attach_note "$R" "$(printf 'greensummit-v2\ntree %s\ngates ci-fmt\nplatform s390x-aix\ngreengate 1.23.0\n' \
     0000000000000000000000000000000000000000)" "$WORK/key"
 check "--anywhere never rescues a stale tree" "" "$R" --anywhere ci-fmt
 attach_note "$R" "$(payload_for "$R" ci-fmt s390x-aix | grep -v '^platform ')" "$WORK/key"
@@ -220,7 +220,7 @@ make_repo "$R" signer@example.org "$WORK/key"
 append_note "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key"
 append_note "$R" "$(payload_for "$R" g2 "$PLATFORM")" "$WORK/key"
 tree=$(git -C "$R" rev-parse 'HEAD^{tree}')
-body=$(git -C "$R" notes --ref amont-attest show "$tree")
+body=$(git -C "$R" notes --ref "$F_REF" show "$tree")
 raw_note "$R" "$(printf '%s' "$body" | sed 's/^gates g2$/gates g2 g3/')"
 check "second block tampered: first still counts" "g1" "$R"
 
@@ -260,7 +260,7 @@ check "a block missing END swallows the valid block after it" "" "$R"
 make_repo "$R" signer@example.org "$WORK/key"
 append_note "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key"
 append_note "$R" "$(payload_for "$R" g2 "$PLATFORM")" "$WORK/key"
-git -C "$R" notes --ref amont-attest copy -f "$(git -C "$R" rev-parse 'HEAD^{tree}')" HEAD 2> /dev/null
+git -C "$R" notes --ref "$F_REF" copy -f "$(git -C "$R" rev-parse 'HEAD^{tree}')" HEAD 2> /dev/null
 check "note on tree and commit is judged once" "g1 g2" "$R"
 
 # At most 32 blocks are read. 31 stranger blocks then a valid one is covered;
@@ -465,9 +465,9 @@ check "fp: ...and its ancestor .gitattributes are inputs" "" "$R"
 # SPEC.md defines — so the helper that computes it elsewhere is not checking
 # itself. The optional path is absent, so the listing is the spec and src.
 fp_repo "test src ?nope"
-spec_oid=$(git -C "$R" rev-parse 'HEAD:.github/attest-inputs')
+spec_oid=$(git -C "$R" rev-parse 'HEAD:.github/greensummit-inputs')
 main_oid=$(git -C "$R" rev-parse 'HEAD:src/main.rs')
-hand=$(printf '100644 blob %s\t.github/attest-inputs\000100644 blob %s\tsrc/main.rs\000' "$spec_oid" "$main_oid" \
+hand=$(printf '100644 blob %s\t.github/greensummit-inputs\000100644 blob %s\tsrc/main.rs\000' "$spec_oid" "$main_oid" \
     | git -C "$R" hash-object --stdin)
 assert_same() { if [ "$1" = "$2" ]; then ok "$3"; else fail "$3" "want [$2] got [$1]"; fi; }
 assert_same "$(fp_of "$R" test)" "$hand" "fp: the fixture helper agrees with a hand-built listing"
@@ -494,7 +494,7 @@ git -C "$R" add -A; git -C "$R" commit -q -m src
 printf 'test src Cargo.toml\n' | write_spec "$R" .forgejo
 attest_fp test; move_tree "$R"
 check "fp: a .forgejo spec works" "test" "$R"
-git -C "$R" mv -q .forgejo/attest-inputs .github/attest-inputs 2> /dev/null || { mkdir -p "$R/.github"; git -C "$R" mv .forgejo/attest-inputs .github/attest-inputs; }
+git -C "$R" mv -q .forgejo/greensummit-inputs .github/greensummit-inputs 2> /dev/null || { mkdir -p "$R/.github"; git -C "$R" mv .forgejo/greensummit-inputs .github/greensummit-inputs; }
 git -C "$R" commit -qm move
 check "fp: the same spec at the other location is a different fingerprint" "" "$R"
 
@@ -577,10 +577,10 @@ attach_input "$R" "$(payload_for "$R" test "$PLATFORM" "" "test=$fp")" "$WORK/ke
 check "fp: covered by tree and by fingerprint, listed once" "test" "$R"
 
 # --- unpushed blocks (1.4.0) ------------------------------------------------
-# `sign.sh --no-push` writes to refs/notes/attest-local/*, which origin cannot
+# `sign.sh --no-push` writes to refs/notes/greensummit-local/*, which origin cannot
 # revoke, so a verifier reads it only when asked.
 make_repo "$R" signer@example.org "$WORK/key"
-note_in attest-local/amont-attest "$R" "$(sign_block "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key")"
+note_in "greensummit-local/$F_REF" "$R" "$(sign_block "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key")"
 check "an unpushed block is ignored by default" "" "$R"
 check "an unpushed block counts with --include-local" "g1" "$R" --include-local
 
@@ -591,17 +591,17 @@ check "an unpushed block counts with --include-local" "g1" "$R" --include-local
 make_repo "$R" signer@example.org "$WORK/key"
 stranger_n() { sign_block "$R" "$(payload_for "$R" "s$1" "$PLATFORM")" "$WORK/other"; }
 strangers_in() { local i; for i in $(seq "$1" "$2"); do stranger_n "$i"; [ "$i" -lt "$2" ] && printf '\n\n'; done; }
-note_in amont-attest "$R" "$(strangers_in 1 32)"
-note_in attest-local/amont-attest "$R" "$(strangers_in 33 64)"
-note_in amont-attest "$R" "$(sign_block "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key")" HEAD
+note_in "$F_REF" "$R" "$(strangers_in 1 32)"
+note_in "greensummit-local/$F_REF" "$R" "$(strangers_in 33 64)"
+note_in "$F_REF" "$R" "$(sign_block "$R" "$(payload_for "$R" g1 "$PLATFORM")" "$WORK/key")" HEAD
 check "order: candidate by candidate, mirror then unpushed" "" "$R" --include-local
-note_in attest-local/amont-attest "$R" "$(strangers_in 33 63)"
+note_in "greensummit-local/$F_REF" "$R" "$(strangers_in 33 63)"
 check "order: 63 verifications leave room for HEAD" "g1" "$R" --include-local
 
 # --- gate names are literal in the fingerprint route (1.4.0) -----------------
 # A signed gate `te\163t` claiming `test`'s fingerprint: awk's `-v` turned it
 # into `test` in 1.3.1's verify.sh, which then reported `te\163t` covered while
-# git-attest reported nothing. It is not a name the spec can declare, so it
+# greensummit reported nothing. It is not a name the spec can declare, so it
 # has no fingerprint route at all.
 fp_repo
 fp=$(fp_of "$R" test)
@@ -637,7 +637,7 @@ check "...nor when admitted by --anywhere" 'pre-push-*' "$R" --platform s390x-ai
 
 # The known answers every implementation shares, through the canon block of
 # both shell scripts, whichever implementation this run is for: the producer
-# and the verifier must fingerprint alike, and alike with git-attest and amont,
+# and the verifier must fingerprint alike, and alike with greensummit and amont,
 # whose own tests read the same file.
 canon_vectors "$LIB_DIR/../verify.sh"
 canon_vectors "$LIB_DIR/../sign/sign.sh"
@@ -739,7 +739,7 @@ check "canon: a block signed by a stranger: nothing" "" "$R"
 canon_repo
 c=$(canon_fp "$R")
 body=$(sign_block "$R" "$(payload_for "$R" test "$PLATFORM" | with_canon "$c")" "$WORK/key")
-note_in amont-attest-inputs "$R" "$(printf '%s' "$body" | sed 's/^gates test$/gates test lint/')" "$(canon_key "$R" "$c")"
+note_in "$F_INPUTS_REF" "$R" "$(printf '%s' "$body" | sed 's/^gates test$/gates test lint/')" "$(canon_key "$R" "$c")"
 printf 'edited\n' > "$R/docs/plans/a.md"; git -C "$R" commit -qam plan-edit
 check "canon: gates edited after signing: nothing" "" "$R"
 
@@ -823,18 +823,18 @@ printf 'edited\n' > "$R/docs/plans/a.md"; git -C "$R" commit -qam plan-edit
 reason_in "$R"
 case $ERR in *"cannot read amont.conf"*) ok "canon: an unreadable amont.conf says so" ;; *) fail "canon: an unreadable amont.conf says so" "$ERR" ;; esac
 
-# The opt-out directive (1.6.0): `@plan-exempt off` in attest-inputs turns the
+# The opt-out directive (1.6.0): `@plan-exempt off` in greensummit-inputs turns the
 # canonical route off as `set planExempt off` in amont.conf does; it is the
 # form that stays after 2.0.0. Any other `@` line invalidates the spec, which
 # disables the fingerprint route only.
-canon_spec_repo() { # attest-inputs content [amont.conf content]
+canon_spec_repo() { # greensummit-inputs content [amont.conf content]
     canon_repo "${2:-}"
-    printf '%b' "$1" > "$R/.github/attest-inputs"
+    printf '%b' "$1" > "$R/.github/greensummit-inputs"
     git -C "$R" add -A; git -C "$R" commit -q -m spec
 }
 canon_spec_repo '@plan-exempt off\n'; attest_canon
 printf 'edited\n' > "$R/docs/plans/a.md"; git -C "$R" commit -qam plan-edit
-check "canon: @plan-exempt off in attest-inputs: nothing" "" "$R"
+check "canon: @plan-exempt off in greensummit-inputs: nothing" "" "$R"
 reason_in "$R"
 case $ERR in *"planExempt is off here"*) ok "canon: ...and says so" ;; *) fail "canon: ...and says so" "$ERR" ;; esac
 case $ERR in *deprecated*) fail "canon: ...with no deprecation" "$ERR" ;; *) ok "canon: ...with no deprecation" ;; esac
@@ -860,7 +860,7 @@ check "canon: an invalid spec still holds amont.conf's opt-out: nothing" "" "$R"
 canon_repo 'set planExempt off\n'; attest_canon
 printf 'edited\n' > "$R/docs/plans/a.md"; git -C "$R" commit -qam plan-edit
 reason_in "$R"
-case $ERR in *"deprecated: planExempt in amont.conf; also write @plan-exempt off in attest-inputs"*) ok "canon: amont.conf alone is deprecated" ;; *) fail "canon: amont.conf alone is deprecated" "$ERR" ;; esac
+case $ERR in *"deprecated: planExempt in amont.conf; also write @plan-exempt off in greensummit-inputs"*) ok "canon: amont.conf alone is deprecated" ;; *) fail "canon: amont.conf alone is deprecated" "$ERR" ;; esac
 canon_spec_repo '@plan-exempt off\n' 'set planExempt off\n'; attest_canon
 printf 'edited\n' > "$R/docs/plans/a.md"; git -C "$R" commit -qam plan-edit
 check "canon: both opt-outs: nothing" "" "$R"
@@ -921,128 +921,105 @@ if [ "${SKIP_JSON:-}" != 1 ]; then
     make_repo "$R" signer@example.org "$WORK/key"
     attach_note "$R" "$(payload_for "$R" "pre-push-cargo-test pre-push-clippy" "$PLATFORM")" "$WORK/key"
     check "github-output emits both forms" \
-        'covered=pre-push-cargo-test pre-push-clippy gates=["pre-push-cargo-test","pre-push-clippy"] notes=no-origin inputs_notes=no-origin legacy_notes=no-origin legacy_inputs_notes=no-origin' \
+        'covered=pre-push-cargo-test pre-push-clippy gates=["pre-push-cargo-test","pre-push-clippy"] notes=no-origin inputs_notes=no-origin' \
         "$R" --github-output
     make_repo "$R" signer@example.org "$WORK/key"
     check "github-output when uncovered is still well-formed" \
-        'covered= gates=[] notes=no-origin inputs_notes=no-origin legacy_notes=no-origin legacy_inputs_notes=no-origin' "$R" --github-output
+        'covered= gates=[] notes=no-origin inputs_notes=no-origin' "$R" --github-output
     # Stopped before reading any notes: the state lines are there, empty.
     rm -f "$R/.github/allowed_signers"
     check "github-output before any notes were read" \
-        'covered= gates=[] notes= inputs_notes= legacy_notes= legacy_inputs_notes=' "$R" --github-output
+        'covered= gates=[] notes= inputs_notes=' "$R" --github-output
 fi
 
-# --- the two name sets (greengate-attest, amont-attest) ----------------------
-# A note is read whole under ONE name: the GREEN ref first, the LEGACY ref only
-# for an object the GREEN ref has no note for; the header decides the namespace
-# and the inputs ref, and the sets never mix.
-GN=greengate-attest-v2
-G_NS=greengate-attest
+# --- the one name set (greensummit) and the names no longer read --------
+# A note is read whole under ONE name: the header decides the namespace and the
+# inputs ref. Notes filed under the 1.x names (greengate-attest, amont-attest)
+# are absent: there is no fallback read.
+GN=greensummit-v2
+G_NS=greensummit
+OLD_GN=greengate-attest-v2
 
 make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: a greengate-attest note covers" "g-green" "$R"
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+check "names: a greensummit note covers" "g-summit" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-check "names: an amont-attest note covers" "g-legacy" "$R"
+# Every namespace ever used is listed, so each refusal below is the reader's.
+OLD_NS=amont-attest,greengate-attest,greensummit
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+note_signed amont-attest amont-attest "$R" "$(payload_for "$R" g-old "$PLATFORM" amont-attest-v2)" "$WORK/key"
+check "names: an amont-attest note is absent" "" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: both exist, the greengate ref wins" "g-green" "$R"
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+note_signed greengate-attest greengate-attest "$R" "$(payload_for "$R" g-old "$PLATFORM" "$OLD_GN")" "$WORK/key"
+check "names: a greengate-attest note is absent" "" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest amont-attest "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: a green header signed under the old namespace is refused" "" "$R"
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+note_signed greensummit greengate-attest "$R" "$(payload_for "$R" g-old "$PLATFORM" "$OLD_GN")" "$WORK/key"
+check "names: a greengate-attest-v2 block in the greensummit ref is refused" "" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM")" "$WORK/key"
-check "names: an old header (signed new) in the green ref is refused" "" "$R"
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-old "$PLATFORM" "$OLD_GN")" "$WORK/key"
+check "names: an old header signed under the new namespace is refused" "" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest amont-attest "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-check "names: an old-header block under the old namespace in the green ref is refused" "" "$R"
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+note_signed greensummit amont-attest "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+check "names: a new header signed under an old namespace is refused" "" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-note_signed amont-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: a green-header block in the legacy ref is refused" "" "$R"
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+note_signed amont-attest "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+check "names: a greensummit block in an old ref is absent" "" "$R"
 
-make_repo "$R" signer@example.org "$WORK/key"
-note_signed amont-attest "$G_NS" "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-check "names: an old header signed under the new namespace in the legacy ref is refused" "" "$R"
-
-# A note that exists in the green ref and does not verify does not send the
-# verifier to the legacy ref: "no note for the object" is the only fallback.
-make_repo "$R" signer@example.org "$WORK/key"
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/other"
-check "names: a bad note in the green ref is not rescued by the legacy ref" "" "$R"
-
-# The allowed_signers namespace pin works per set.
-SIGNERS_NS=amont-attest make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: a signers line pinned to amont-attest refuses a green block" "" "$R"
-SIGNERS_NS=greengate-attest make_repo "$R" signer@example.org "$WORK/key"
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-check "names: a signers line pinned to greengate-attest refuses an old block" "" "$R"
+# The allowed_signers namespace pin.
+SIGNERS_NS=amont-attest,greengate-attest make_repo "$R" signer@example.org "$WORK/key"
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+check "names: a signers line pinned to the old namespaces refuses a greensummit block" "" "$R"
 
 # Unpushed blocks follow the same pairing.
 make_repo "$R" signer@example.org "$WORK/key"
-note_signed attest-local/greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: a local green block is ignored without --include-local" "" "$R"
-check "names: a local green block with --include-local" "g-green" "$R" --include-local
-note_signed attest-local/greengate-attest amont-attest "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-check "names: a local green header under the old namespace is refused" "" "$R" --include-local
+note_signed greensummit-local/greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+check "names: a local block is ignored without --include-local" "" "$R"
+check "names: a local block with --include-local" "g-summit" "$R" --include-local
+note_signed greensummit-local/greensummit amont-attest "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+check "names: a local header under an old namespace is refused" "" "$R" --include-local
 
-# The inputs refs pair the same way: each set computes its own key and reads its
-# own ref.
+# The inputs ref: the key is computed under the greensummit domain.
 fp_repo
 fp=$(fp_of "$R" test)
-note_signed greengate-attest-inputs "$G_NS" "$R" "$(payload_for "$R" test "$PLATFORM" "$GN" "test=$fp")" "$WORK/key" \
-    "$(input_key "$R" test "$fp" greengate-attest-input)"
+note_signed greensummit-inputs "$G_NS" "$R" "$(payload_for "$R" test "$PLATFORM" "$GN" "test=$fp")" "$WORK/key" \
+    "$(input_key "$R" test "$fp" greensummit-input)"
 move_tree "$R"
-check "names: a green input-fingerprint note covers" "test" "$R"
+check "names: an input-fingerprint note covers" "test" "$R"
 
 fp_repo
 fp=$(fp_of "$R" test)
-note_signed greengate-attest-inputs "$G_NS" "$R" "$(payload_for "$R" test "$PLATFORM" "$GN" "test=$fp")" "$WORK/key" \
-    "$(input_key "$R" test "$fp")"
+note_signed greensummit-inputs "$G_NS" "$R" "$(payload_for "$R" test "$PLATFORM" "$GN" "test=$fp")" "$WORK/key" \
+    "$(input_key "$R" test "$fp" amont-attest-input)"
 move_tree "$R"
-check "names: a green block under the legacy key is never looked up" "" "$R"
+check "names: a block under an old-domain key is never looked up" "" "$R"
 
 fp_repo
 fp=$(fp_of "$R" test)
 note_signed amont-attest-inputs "$G_NS" "$R" "$(payload_for "$R" test "$PLATFORM" "$GN" "test=$fp")" "$WORK/key" \
-    "$(input_key "$R" test "$fp")"
+    "$(input_key "$R" test "$fp" greensummit-input)"
 move_tree "$R"
-check "names: a green block in the legacy inputs ref is refused" "" "$R"
+check "names: a block in an old inputs ref is absent" "" "$R"
 
 fp_repo
 fp=$(fp_of "$R" test)
-note_signed amont-attest-inputs amont-attest "$R" "$(payload_for "$R" test "$PLATFORM" "" "test=$fp")" "$WORK/key" \
-    "$(input_key "$R" test "$fp")"
-fpl=$(fp_of "$R" lint)
-note_signed greengate-attest-inputs "$G_NS" "$R" "$(payload_for "$R" "test lint" "$PLATFORM" "$GN" "test=$fp lint=$fpl")" "$WORK/key" \
-    "$(input_key "$R" test "$fp" greengate-attest-input)"
+note_signed amont-attest-inputs amont-attest "$R" "$(payload_for "$R" test "$PLATFORM" amont-attest-v2 "test=$fp")" "$WORK/key" \
+    "$(input_key "$R" test "$fp" amont-attest-input)"
 move_tree "$R"
-check "names: inputs, both exist, the green one wins" "test lint" "$R"
+check "names: an old input-fingerprint note no longer covers" "" "$R"
 
-fp_repo
-fp=$(fp_of "$R" test)
-note_signed amont-attest-inputs amont-attest "$R" "$(payload_for "$R" test "$PLATFORM" "" "test=$fp")" "$WORK/key" \
-    "$(input_key "$R" test "$fp")"
-move_tree "$R"
-check "names: a legacy input-fingerprint note still covers" "test" "$R"
-
-# The canonical tree, under each set's own domain.
+# The canonical tree, under the greensummit domain.
 fp_repo
 mkdir -p "$R/docs/plans"; echo plan > "$R/docs/plans/p.md"; git -C "$R" add -A; git -C "$R" commit -q -m plan
 c1=$(canon_fp "$R")
-note_signed greengate-attest-inputs "$G_NS" "$R" "$(payload_for "$R" g-canon "$PLATFORM" "$GN" | with_canon "$c1")" "$WORK/key" \
-    "$(printf 'greengate-attest-canon %s\n' "$c1" | git -C "$R" hash-object --stdin)"
+note_signed greensummit-inputs "$G_NS" "$R" "$(payload_for "$R" g-canon "$PLATFORM" "$GN" | with_canon "$c1")" "$WORK/key" \
+    "$(printf 'greensummit-canon %s\n' "$c1" | git -C "$R" hash-object --stdin)"
 echo plan2 > "$R/docs/plans/p.md"; git -C "$R" commit -qam plan2
-check "names: a green canonical-tree note covers" "g-canon" "$R"
+check "names: a canonical-tree note covers" "g-canon" "$R"
 
 # What is printed: the name each verification went through.
 verified_line() { # dir
@@ -1057,34 +1034,29 @@ expect_line() { # name want dir
     if [ "$got" = "$2" ]; then ok "$1"; else fail "$1" "want [$2] got [$got]"; fi
 }
 make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-expect_line "names: prints verified under greengate-attest" "verified under greengate-attest" "$R"
-make_repo "$R" signer@example.org "$WORK/key"
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-expect_line "names: prints verified under amont-attest" "verified under amont-attest" "$R"
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+expect_line "names: prints verified under greensummit" "verified under greensummit" "$R"
 
 # A block a bound principal may not sign did not verify: no line for it.
 make_repo "$R" cluster-signer@x86_64-linux "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green aarch64-macos "$GN")" "$WORK/key"
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit aarch64-macos "$GN")" "$WORK/key"
 expect_line "names: a platform-bound refusal prints no verified-under line" "" "$R"
 
 # A valid block that covers nothing (another tree) earns no line.
 make_repo "$R" signer@example.org "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(printf '%s\ntree %s\ngates g\nplatform %s\ngreengate 1.0\n' \
+note_signed greensummit "$G_NS" "$R" "$(printf '%s\ntree %s\ngates g\nplatform %s\ngreengate 1.0\n' \
     "$GN" 0000000000000000000000000000000000000000 "$PLATFORM")" "$WORK/key"
 expect_line "names: a valid block that covers nothing prints no verified-under line" "" "$R"
 
-# A note listed but unreadable (its blob gone) is still a note: the legacy ref
-# is not read for that object.
+# A note listed but unreadable (its blob gone) is still a note.
 make_repo "$R" signer@example.org "$WORK/key"
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-blob=$(git -C "$R" notes --ref greengate-attest list "$(git -C "$R" rev-parse 'HEAD^{tree}')")
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+blob=$(git -C "$R" notes --ref greensummit list "$(git -C "$R" rev-parse 'HEAD^{tree}')")
 rm -f "$R/.git/objects/$(printf '%s' "$blob" | cut -c1-2)/$(printf '%s' "$blob" | cut -c3-)"
-check "names: an unreadable green note does not fall back to the legacy ref" "" "$R"
+check "names: an unreadable note covers nothing" "" "$R"
 
-# Origin: a missing old ref, and separately a missing new ref, changes nothing.
-mk_origin() { # sets $R to a clone of a bare origin; extra args: refs to push
+# Origin: a ref it has covers; one it lacks changes nothing.
+mk_origin() { # sets $R to a clone of a bare origin
     rm -rf "$WORK/origin.git"; git init -q --bare "$WORK/origin.git"
     make_repo "$R" signer@example.org "$WORK/key"
     git -C "$R" remote add origin "$WORK/origin.git"
@@ -1093,24 +1065,20 @@ push_refs() { local r; for r in "$@"; do git -C "$R" push -q origin "refs/notes/
 drop_local() { local r; for r in "$@"; do git -C "$R" update-ref -d "refs/notes/$r" 2> /dev/null; done; }
 
 mk_origin
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-push_refs greengate-attest; drop_local greengate-attest
-check "names: origin has only the green ref (no amont ref): covered" "g-green" "$R"
+note_signed greensummit "$G_NS" "$R" "$(payload_for "$R" g-summit "$PLATFORM" "$GN")" "$WORK/key"
+push_refs greensummit; drop_local greensummit
+check "names: origin has the greensummit ref: covered" "g-summit" "$R"
 
 mk_origin
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
+SIGNERS_NS=$OLD_NS make_repo "$R" signer@example.org "$WORK/key"
+git -C "$R" remote add origin "$WORK/origin.git"
+note_signed amont-attest amont-attest "$R" "$(payload_for "$R" g-old "$PLATFORM" amont-attest-v2)" "$WORK/key"
 push_refs amont-attest; drop_local amont-attest
-check "names: origin has only the amont ref (no green ref): covered" "g-legacy" "$R"
-
-mk_origin
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-note_signed greengate-attest "$G_NS" "$R" "$(payload_for "$R" g-green "$PLATFORM" "$GN")" "$WORK/key"
-push_refs amont-attest greengate-attest; drop_local amont-attest greengate-attest
-check "names: origin has both refs, the green one wins" "g-green" "$R"
+check "names: origin has only the amont-attest ref: nothing covered" "" "$R"
 
 # A local mirror of a ref origin lacks is deleted, never judged.
 mk_origin
-attach_note "$R" "$(payload_for "$R" g-legacy "$PLATFORM")" "$WORK/key"
-check "names: a local amont mirror origin does not have is not judged" "" "$R"
+attach_note "$R" "$(payload_for "$R" g-summit "$PLATFORM")" "$WORK/key"
+check "names: a local mirror origin does not have is not judged" "" "$R"
 
 summary

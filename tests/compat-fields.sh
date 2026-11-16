@@ -23,6 +23,9 @@ set -u
 # shellcheck disable=SC2034  # read by lib.sh
 IMPL=${1:?usage: compat-fields.sh <implementation command> old|fp13|fp14|fp15|new}
 AGE=${2:?usage: compat-fields.sh <implementation command> old|fp13|fp14|fp15|new}
+# A frozen 1.x verifier knows only the 1.x names; the current one only the new.
+# shellcheck disable=SC2034  # read by lib.sh
+[ "$AGE" = new ] || NAMES=amont
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 # The helper is sourced, which shellcheck follows only under -x; the hook
@@ -118,10 +121,10 @@ fi
 # The opt-out directive (1.6.0). Alone, a 1.5.x verifier still uses the
 # canonical tree: it reads the directive as an invalid gate name, which only
 # disables input fingerprints. With amont.conf's line too, nobody does.
-optout_repo() { # attest-inputs [amont.conf]
+optout_repo() { # spec-text [amont.conf]
     make_repo "$R" signer@example.org "$WORK/key"
     mkdir -p "$R/docs/plans" "$R/.github"; echo p > "$R/docs/plans/a.md"; echo c > "$R/code.txt"
-    printf '%b' "$1" > "$R/.github/attest-inputs"
+    printf '%b' "$1" > "$R/.github/$F_SPEC"
     if [ $# -gt 1 ]; then printf '%b' "$2" > "$R/amont.conf"; fi
     git -C "$R" add -A; git -C "$R" commit -q -m src
     c=$(canon_fp "$R")

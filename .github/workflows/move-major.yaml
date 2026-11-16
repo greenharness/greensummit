@@ -1,6 +1,6 @@
 # Step 3 of a release: move the major alias, once the canary has passed.
 #
-# `uses: fredericrous/attest@v1` is how most consumers pin, so `v1` reaches
+# `uses: greenharness/greensummit@v2` is how most consumers pin, so `v1` reaches
 # the fleet the moment it moves. It therefore moves only by hand, AFTER amont
 # (the canary) has pinned the new tag and its CI has passed on it:
 #

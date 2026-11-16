@@ -1,6 +1,6 @@
 //! What a producer signs: for some gates that passed on a tree, the payload
 //! and every key it is filed under (SPEC.md, "Producing"), under the written
-//! names ([`crate::format::WRITE`]). greengate at pre-push and `git-attest
+//! names ([`crate::format::WRITE`]). greengate at pre-push and `greensummit
 //! sign` in CI build their blocks here, so both sign the same bytes for the
 //! same tree.
 
@@ -99,7 +99,7 @@ pub fn attestation(
             None
         }
         PlanExempt::Unreadable => {
-            log.push("cannot read amont.conf or attest-inputs; no canonical tree".into());
+            log.push("cannot read amont.conf or greensummit-inputs; no canonical tree".into());
             None
         }
         PlanExempt::On => {

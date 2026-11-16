@@ -1,11 +1,11 @@
-//! `git-attest`: the one implementation of the attestation format (SPEC.md,
+//! `greensummit`: the one implementation of the attestation format (SPEC.md,
 //! decisions ADR-0037). Producers and verifiers call this library; the
-//! `git-attest` binary is a thin command line over it.
+//! `greensummit` binary is a thin command line over it.
 //!
 //! Each module owns one piece of the format and hides it:
 //!
 //! - [`format`]: the payload's fields, a note's blocks, the shared names;
-//! - [`spec`]: the `attest-inputs` declaration and the canonical opt-out;
+//! - [`spec`]: the `greensummit-inputs` declaration and the canonical opt-out;
 //! - [`fingerprint`]: input fingerprints, the canonical tree, their note keys;
 //! - [`sign`]: `ssh-keygen -Y`, for any namespace;
 //! - [`notes`]: the notes refs as origin's mirror, and publishing to them;

@@ -1,6 +1,6 @@
-# The git-attest release the actions run, and the sha256 of each archive
+# The greensummit release the actions run, and the sha256 of each archive
 # (decisions ADR-0037). fetch.sh downloads
-# git-attest-<version>-<target>.tar.gz from that release, refuses it unless
+# greensummit-<version>-<target>.tar.gz from that release, refuses it unless
 # its digest is the one written here, and the actions fall back to verify.sh
 # and sign.sh when it cannot. A commit therefore names the bytes its actions
 # run: a swapped release asset is refused, not run.

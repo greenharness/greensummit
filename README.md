@@ -10,7 +10,7 @@ proved, and lets CI **verify** that signature and skip the work.
 ```yaml
 - uses: actions/checkout@v4
 - id: attest
-  uses: fredericrous/attest@v1
+  uses: greenharness/greensummit@v2
   with:
     anywhere: ci-fmt        # gates whose result cannot depend on where they ran
 
@@ -23,7 +23,7 @@ proved, and lets CI **verify** that signature and skip the work.
 
 # Last, and only after every gate above: sign what THIS job ran, so the next
 # run of the same tree (a re-run, the push to main after the merge) skips it.
-- uses: fredericrous/attest/sign@v1
+- uses: greenharness/greensummit/sign@v2
   with:
     key: ${{ secrets.ATTEST_SIGNING_KEY }}
     gates: >-
@@ -50,9 +50,9 @@ fail your build.
 The price of that is silence, so the action explains itself in the job log:
 
 ```
-attest: attested on aarch64-macos, this leg is x86_64-linux
-attest: no attestation found for tree 9f2a1c…
-attest: covered by you@example.com: pre-push-cargo-test pre-push-clippy
+greensummit: attested on aarch64-macos, this leg is x86_64-linux
+greensummit: no attestation found for tree 9f2a1c…
+greensummit: covered by you@example.com: pre-push-cargo-test pre-push-clippy
 ```
 
 ## Setup
@@ -62,7 +62,7 @@ Three steps, once.
 **1. Make a signing key** and tell your hook runner to use it:
 
 ```sh
-ssh-keygen -t ed25519 -N '' -C "$(git config user.email)" -f ~/.ssh/amont-attest
+ssh-keygen -t ed25519 -N '' -C "$(git config user.email)" -f ~/.ssh/greensummit
 git config --global greengate.attest true
 ```
 
@@ -70,12 +70,12 @@ git config --global greengate.attest true
 `.forgejo/allowed_signers`), pinned to the namespace:
 
 ```
-you@example.com namespaces="amont-attest,greengate-attest" ssh-ed25519 AAAAC3Nza…
+you@example.com namespaces="greensummit" ssh-ed25519 AAAAC3Nza…
 ```
 
-> Since 1.10.0 signers write the `greengate-attest` namespace; `amont-attest`
-> stays listed while older notes and older producers are still around (the
-> 30-day window, SPEC.md "Names"), and goes at 2.0.0.
+> Notes signed under the older namespaces (`amont-attest`,
+> `greengate-attest`) are not read by 2.0.0 (SPEC.md "Names"): list
+> `greensummit` alone.
 
 > Use **your real address**, the one in the note's principal column. The
 > verifier reads the signer's identity from the signature itself, so a file
@@ -92,12 +92,12 @@ same trust as editing a workflow file, so give it the same protection — if
 commit — each release's notes name it:
 
 ```yaml
-- uses: fredericrous/attest@<sha>  # v1.x.y
+- uses: greenharness/greensummit@<sha>  # v1.x.y
 ```
 
 ### What the action runs
 
-Both actions run `git-attest`, at the version [`RELEASE`](RELEASE) names, and
+Both actions run `greensummit`, at the version [`RELEASE`](RELEASE) names, and
 only an archive whose sha256 is the one written there: the commit you pin
 names the bytes it runs, and a swapped release asset is refused. Linux x86_64
 runners take the static musl build, so an old glibc or an Alpine `container:`
@@ -145,7 +145,7 @@ the tree and voids it. Declare what each gate actually reads and it survives
 them:
 
 ```
-# .github/attest-inputs — literal paths and directories only: git ls-tree
+# .github/greensummit-inputs — literal paths and directories only: git ls-tree
 # does NOT glob, `tests/*.sh` would match nothing and fingerprint nothing.
 pre-push-cargo-test .github/workflows/ci.yaml Cargo.toml Cargo.lock rust-toolchain.toml src
 ci-fmt              .github/workflows/ci.yaml Cargo.toml rust-toolchain.toml src
@@ -165,7 +165,7 @@ exactly like `allowed_signers`, and belongs in the same CODEOWNERS line.
 differs only in the *content* of files under the top-level `docs/plans/`
 (SPEC.md, "Canonical tree"), with nothing to declare. A repository whose gate
 reads the contents of a plan (a whole-tree formatter, a link checker) opts out
-with one line in its `attest-inputs`:
+with one line in its `greensummit-inputs`:
 
 ```
 @plan-exempt off
@@ -190,14 +190,14 @@ the format, and it is short.
 ### From CI
 
 CI tests the merge tree during the pull request, then the push to main tests
-the identical tree again. `fredericrous/attest/sign` records the first result
+the identical tree again. `greenharness/greensummit/sign` records the first result
 so the second run skips it — and so do re-runs and duplicated matrix legs.
 Setup, once:
 
 ```sh
 ssh-keygen -t ed25519 -N '' -C ci@example.invalid -f attest-ci
 gh secret set ATTEST_SIGNING_KEY < attest-ci
-printf '%s namespaces="amont-attest,greengate-attest" %s\n' ci@example.invalid "$(cat attest-ci.pub)" >> .github/allowed_signers
+printf '%s namespaces="greensummit" %s\n' ci@example.invalid "$(cat attest-ci.pub)" >> .github/allowed_signers
 rm attest-ci
 ```
 
@@ -217,7 +217,7 @@ Then the trailing step shown at the top, with three rules that keep it honest:
 
 Fork pull requests get no secret and a read-only token; both paths just report
 and succeed. With `push: false` the block stays on the runner, in
-`refs/notes/attest-local/greengate-attest`, and the verifier reads it only with
+`refs/notes/greensummit-local/greensummit`, and the verifier reads it only with
 `include-local: true`: origin never saw it, so origin cannot revoke it.
 
 **Origin is the source of truth.** The verifier treats the local notes refs as
@@ -241,14 +241,14 @@ conviction: trust what was verified, never what was reported.
 
 | | |
 |---|---|
-| [`SPEC.md`](SPEC.md) | the `greengate-attest-v2` (formerly `amont-attest-v2`) wire format, input fingerprints included |
-| [`action.yml`](action.yml) | the composite action, for GitHub **and** Forgejo: runs `git-attest covered` |
-| [`sign/`](sign/) | the CI producer: `sign/action.yml` runs `git-attest sign` |
-| [`RELEASE`](RELEASE) | the `git-attest` release both actions run, and each archive's sha256 |
+| [`SPEC.md`](SPEC.md) | the `greensummit-v2` wire format, input fingerprints included |
+| [`action.yml`](action.yml) | the composite action, for GitHub **and** Forgejo: runs `greensummit covered` |
+| [`sign/`](sign/) | the CI producer: `sign/action.yml` runs `greensummit sign` |
+| [`RELEASE`](RELEASE) | the `greensummit` release both actions run, and each archive's sha256 |
 | [`fetch.sh`](fetch.sh) | how the actions get that binary: cache or download, digest check, a proof it runs |
-| [`.github/attest-inputs`](.github/attest-inputs) | this repository's own input spec: the dogfood, and a template |
+| [`.github/greensummit-inputs`](.github/greensummit-inputs) | this repository's own input spec: the dogfood, and a template |
 | [`verify.sh`](verify.sh), [`sign/sign.sh`](sign/sign.sh) | the shell fallback the actions use when the binary cannot answer; deprecated as entry points, gone in 2.0.0 |
-| `src/` | the `git_attest` library, the one implementation of the format (decisions ADR-0037) that amont links, and `git-attest`, its command line |
+| `src/` | the `greensummit` library, the one implementation of the format (decisions ADR-0037) that amont links, and `greensummit`, its command line |
 | [`tests/conformance.sh`](tests/conformance.sh) | the fixtures both implementations must pass |
 
 ### Forgejo
@@ -256,20 +256,20 @@ conviction: trust what was verified, never what was reported.
 Same file, full-URL `uses:`:
 
 ```yaml
-- uses: https://github.com/fredericrous/attest@v1
+- uses: https://github.com/greenharness/greensummit@v2
 ```
 
 ### Other CI
 
 ```sh
-cargo install git-attest
-git-attest covered                     # names, or nothing
-git-attest explain                     # ...and why
-git-attest sign --gates "NAMES" < key  # attest what this job ran (sign.sh's flags)
-git-attest check-inputs --require GATE # does attest-inputs cover every tracked file?
+cargo install greensummit
+greensummit covered                     # names, or nothing
+greensummit explain                     # ...and why
+greensummit sign --gates "NAMES" < key  # attest what this job ran (sign.sh's flags)
+greensummit check-inputs --require GATE # does greensummit-inputs cover every tracked file?
 ```
 
-`git-attest explain` is the answer to "why didn't it skip?", which is otherwise
+`greensummit explain` is the answer to "why didn't it skip?", which is otherwise
 unanswerable by design.
 
 ## Zero dependencies
@@ -287,7 +287,7 @@ that for a living.
 ```sh
 make check                                  # both implementations
 ./tests/conformance.sh ./verify.sh
-./tests/conformance.sh "target/release/git-attest covered"
+./tests/conformance.sh "target/release/greensummit covered"
 ```
 
 `tests/legacy.sh` is a **negative control** — the verifier this project

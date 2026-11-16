@@ -1,6 +1,6 @@
 # Verify a signed attestation, so a CI job can skip work that already ran.
 #
-# Runs git-attest, attest's one implementation (decisions ADR-0037), at the
+# Runs greensummit, attest's one implementation (decisions ADR-0037), at the
 # version RELEASE pins and only with the archive digest RELEASE names: the
 # commit you pin names the bytes it runs. fetch.sh takes the archive from the
 # runner's tool cache or the release, checks it, and proves it runs.
@@ -12,9 +12,9 @@
 # needs only `git` and `ssh-keygen`, answers instead. A flaky network can
 # cost a skip, never disable a gate, never fail the job.
 #
-# Forgejo uses the same file: `uses: https://github.com/fredericrous/attest@v1`.
+# Forgejo uses the same file: `uses: https://github.com/greenharness/greensummit@v2`.
 # Forgejo Actions sets the same GITHUB_* variables this relies on.
-name: attest
+name: greensummit
 description: Skip a CI job when a signed note proves its gate already passed on this exact tree
 branding:
   icon: check-circle
@@ -56,7 +56,7 @@ inputs:
     default: ""
   include-local:
     description: >-
-      `true` also reads refs/notes/attest-local/*: blocks a `sign` step wrote
+      `true` also reads refs/notes/greensummit-local/*: blocks a `sign` step wrote
       with `push: false`, which never reached origin and so cannot be revoked
       there. Off by default, so a persistent runner's leftovers never cover a
       later job. Only `true`, `false` or empty; anything else fails the step.
@@ -64,7 +64,7 @@ inputs:
     default: "false"
   binary:
     description: >-
-      TEST-ONLY: a git-attest binary to run instead of the pinned release,
+      TEST-ONLY: a greensummit binary to run instead of the pinned release,
       relative to the workspace. attest's own CI sets it after `cargo build`
       so a branch tests its own code; anywhere else it only takes away the
       digest check. Setting it prints a notice.
@@ -93,8 +93,7 @@ outputs:
     value: ${{ steps.verify.outputs.covered }}
   notes:
     description: >-
-      What became of refs/notes/greengate-attest (since 1.9.0; before, this
-      key reported refs/notes/amont-attest, now in legacy_notes), origin's
+      What became of refs/notes/greensummit, origin's
       mirror: fetched, absent
       (origin has none; the local mirror was deleted), unreachable (origin did
       not answer; nothing was judged), unwritable (origin's copy could not
@@ -102,16 +101,8 @@ outputs:
       undeletable, or no-origin.
     value: ${{ steps.verify.outputs.notes }}
   inputs_notes:
-    description: The same, for refs/notes/greengate-attest-inputs.
+    description: The same, for refs/notes/greensummit-inputs.
     value: ${{ steps.verify.outputs.inputs_notes }}
-  legacy_notes:
-    description: >-
-      The same, for the older refs/notes/amont-attest, which is read for an
-      object the greengate ref has no note for until the old names are removed.
-    value: ${{ steps.verify.outputs.legacy_notes }}
-  legacy_inputs_notes:
-    description: The same, for refs/notes/amont-attest-inputs.
-    value: ${{ steps.verify.outputs.legacy_inputs_notes }}
 
 runs:
   using: composite
@@ -119,40 +110,40 @@ runs:
     - id: verify
       shell: bash
       env:
-        ATTEST_SIGNERS: ${{ inputs.signers }}
-        ATTEST_PRINCIPAL: ${{ inputs.principal }}
-        ATTEST_PLATFORM: ${{ inputs.platform }}
-        ATTEST_ANYWHERE: ${{ inputs.anywhere }}
-        ATTEST_INCLUDE_LOCAL: ${{ inputs.include-local }}
-        ATTEST_BINARY: ${{ inputs.binary }}
+        GREENSUMMIT_SIGNERS: ${{ inputs.signers }}
+        GREENSUMMIT_PRINCIPAL: ${{ inputs.principal }}
+        GREENSUMMIT_PLATFORM: ${{ inputs.platform }}
+        GREENSUMMIT_ANYWHERE: ${{ inputs.anywhere }}
+        GREENSUMMIT_INCLUDE_LOCAL: ${{ inputs.include-local }}
+        GREENSUMMIT_BINARY: ${{ inputs.binary }}
       run: |
         set -u
         # Positional parameters rather than a bash array: macOS runners can
         # still put bash 3.2 first on PATH, where an empty array under `set -u`
         # is an error. `"$@"` is exempt from nounset in every POSIX shell.
         set --
-        if [ -n "$ATTEST_SIGNERS" ];   then set -- "$@" --signers   "$ATTEST_SIGNERS";   fi
-        if [ -n "$ATTEST_PRINCIPAL" ]; then set -- "$@" --principal "$ATTEST_PRINCIPAL"; fi
-        if [ -n "$ATTEST_PLATFORM" ];  then set -- "$@" --platform  "$ATTEST_PLATFORM";  fi
-        if [ -n "$ATTEST_ANYWHERE" ];  then set -- "$@" --anywhere  "$ATTEST_ANYWHERE";  fi
+        if [ -n "$GREENSUMMIT_SIGNERS" ];   then set -- "$@" --signers   "$GREENSUMMIT_SIGNERS";   fi
+        if [ -n "$GREENSUMMIT_PRINCIPAL" ]; then set -- "$@" --principal "$GREENSUMMIT_PRINCIPAL"; fi
+        if [ -n "$GREENSUMMIT_PLATFORM" ];  then set -- "$@" --platform  "$GREENSUMMIT_PLATFORM";  fi
+        if [ -n "$GREENSUMMIT_ANYWHERE" ];  then set -- "$@" --anywhere  "$GREENSUMMIT_ANYWHERE";  fi
         # Strict, like an unknown flag: a typo such as `ture` that silently
         # meant `false` would just never cover anything.
-        case "$ATTEST_INCLUDE_LOCAL" in
+        case "$GREENSUMMIT_INCLUDE_LOCAL" in
           true) set -- "$@" --include-local ;;
           false | "") ;;
-          *) echo "attest: include-local must be true or false, not '$ATTEST_INCLUDE_LOCAL'" >&2; exit 2 ;;
+          *) echo "greensummit: include-local must be true or false, not '$GREENSUMMIT_INCLUDE_LOCAL'" >&2; exit 2 ;;
         esac
         # The binary: the pinned release, or (tests only) the one given.
         bin= why=
-        if [ -n "$ATTEST_BINARY" ]; then
-          echo "::notice title=attest::binary: is test-only; running $ATTEST_BINARY, not the pinned release"
-          bin=$ATTEST_BINARY
+        if [ -n "$GREENSUMMIT_BINARY" ]; then
+          echo "::notice title=greensummit::binary: is test-only; running $GREENSUMMIT_BINARY, not the pinned release"
+          bin=$GREENSUMMIT_BINARY
         else
           err=$(mktemp)
           bin=$(bash "$GITHUB_ACTION_PATH/fetch.sh" 2> "$err") || bin=
           cat "$err" >&2
           if [ -z "$bin" ]; then
-            why=$(tail -n 1 "$err" | sed 's/^attest: //')
+            why=$(tail -n 1 "$err" | sed 's/^greensummit: //')
             [ -n "$why" ] || why="fetch.sh named no binary"
           fi
           rm -f "$err"
@@ -167,27 +158,26 @@ runs:
           if out=$("$bin" covered --github-output "$@"); then
             case $'\n'"$out" in
               *$'\n'covered=*) ;;
-              *) why="git-attest wrote no covered= line" ;;
+              *) why="greensummit wrote no covered= line" ;;
             esac
           else
-            why="git-attest exited $?"
+            why="greensummit exited $?"
           fi
         fi
         if [ -n "$why" ]; then
-          echo "::warning title=attest::$why; verify.sh answers instead"
-          out=$(ATTEST_NO_DEPRECATION=1 bash "$GITHUB_ACTION_PATH/verify.sh" --github-output "$@")
+          echo "::warning title=greensummit::$why; verify.sh answers instead"
+          out=$(GREENSUMMIT_NO_DEPRECATION=1 bash "$GITHUB_ACTION_PATH/verify.sh" --github-output "$@")
         fi
         printf '%s\n' "$out" >> "$GITHUB_OUTPUT"
         # A mirror nobody could fetch covers nothing, silently in the gates —
         # so say it where a fleet-wide slowdown would otherwise hide it.
         # Two checks, not one case: both can be true, and each deserves its line.
-        # The patterns match inside notes=, inputs_notes=, legacy_notes= and
-        # legacy_inputs_notes= alike, so either name set trips them.
+        # The patterns match inside notes= and inputs_notes= alike.
         case "$out" in
           *"notes=unreachable"*)
-            echo "::warning title=attest::origin's notes could not be fetched; nothing was skipped (see the log above)" ;;
+            echo "::warning title=greensummit::origin's notes could not be fetched; nothing was skipped (see the log above)" ;;
         esac
         case "$out" in
           *"notes=unwritable"*)
-            echo "::warning title=attest::a stale lock keeps origin's notes out of the mirror; nothing was skipped (the log above says what to rm)" ;;
+            echo "::warning title=greensummit::a stale lock keeps origin's notes out of the mirror; nothing was skipped (the log above says what to rm)" ;;
         esac

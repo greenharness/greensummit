@@ -5,6 +5,18 @@ use crate::format::*;
 use crate::spec::*;
 use crate::verify::*;
 
+/// The names 1.x wrote, which the vectors under `tests/vectors` were captured
+/// with. A fixture of released behaviour, never a set a reader consults.
+const CAPTURED: Names = Names {
+    format: "amont-attest-v2",
+    notes_ref: "amont-attest",
+    inputs_ref: "amont-attest-inputs",
+    namespace: "amont-attest",
+    input_domain: "amont-attest-input",
+    canon_domain: "amont-attest-canon",
+    producer: "amont",
+};
+
 const SIG: &str = "-----BEGIN SSH SIGNATURE-----\nU1NIU0lH\n-----END SSH SIGNATURE-----";
 
 fn block(n: u32) -> String {
@@ -215,8 +227,8 @@ fn implicit_inputs_cover_both_specs_gitmodules_and_ancestor_attributes() {
     assert_eq!(
         v,
         vec![
-            ".forgejo/attest-inputs",
-            ".github/attest-inputs",
+            ".forgejo/greensummit-inputs",
+            ".github/greensummit-inputs",
             ".gitmodules",
             ".gitattributes",
             "crates/.gitattributes",
@@ -249,14 +261,14 @@ fn input_lines_need_exactly_three_fields_and_a_real_oid() {
 
 #[test]
 fn key_preimage_is_exact() {
-    // What is written: the GREEN domain since 1.10.0.
+    // What is written.
     assert_eq!(
         key_preimage("ci-fmt", "abc"),
-        "greengate-attest-input ci-fmt abc\n"
+        "greensummit-input ci-fmt abc\n"
     );
-    // What a LEGACY note was filed under, still read.
+    // What a 1.x note was filed under: no longer read, kept as a known answer.
     assert_eq!(
-        key_preimage_in(&LEGACY, "ci-fmt", "abc"),
+        key_preimage_in(&CAPTURED, "ci-fmt", "abc"),
         "amont-attest-input ci-fmt abc\n"
     );
 }
@@ -435,12 +447,9 @@ fn a_canon_claim_is_two_fields_and_a_real_oid() {
     assert_eq!(canon_claim("canon\n"), None);
     // first occurrence wins
     assert_eq!(canon_claim(&format!("canon {O1}\ncanon {O2}\n")), Some(O1));
+    assert_eq!(canon_key_preimage(O1), format!("greensummit-canon {O1}\n"));
     assert_eq!(
-        canon_key_preimage(O1),
-        format!("greengate-attest-canon {O1}\n")
-    );
-    assert_eq!(
-        canon_key_preimage_in(&LEGACY, O1),
+        canon_key_preimage_in(&CAPTURED, O1),
         format!("amont-attest-canon {O1}\n")
     );
 }
@@ -458,11 +467,11 @@ fn a_payload_has_the_spec_shape_and_a_block_one_blank_line() {
     );
     assert_eq!(
         p,
-        format!("greengate-attest-v2\ntree t0\ngates lint test\nplatform x86_64-linux\ninput lint {O1}\ncanon {O2}\ngreengate attest-sign\n")
+        format!("greensummit-v2\ntree t0\ngates lint test\nplatform x86_64-linux\ninput lint {O1}\ncanon {O2}\ngreengate attest-sign\n")
     );
     assert_eq!(
         payload("t", "g", "p", &[], None, "x"),
-        "greengate-attest-v2\ntree t\ngates g\nplatform p\ngreengate x\n"
+        "greensummit-v2\ntree t\ngates g\nplatform p\ngreengate x\n"
     );
     let b = crate::format::block(&p, &format!("{SIG}\n"));
     let (back, sig) = split_note(&b).unwrap();
@@ -523,7 +532,7 @@ fn coverage_is_per_gate_by_real_ancestry() {
         "docs/README.md",
         "docs/plans/p.md",
         ".gitattributes",
-        ".github/attest-inputs",
+        ".github/greensummit-inputs",
         "Cargo.toml",
     ]
     .iter()
@@ -555,19 +564,19 @@ fn coverage_is_per_gate_by_real_ancestry() {
     );
     assert!(f
         .render()
-        .contains("check-attest-inputs: lint: not covered:\n  srcx/other.rs\n"));
+        .contains("check-greensummit-inputs: lint: not covered:\n  srcx/other.rs\n"));
     assert!(coverage(&spec, &req(&["lint"]), &files[..1], |_| true).is_empty());
 }
 
 /// A scratch repository with one commit: `src/main.rs`, a spec declaring
 /// `lint src`, and `.github/allowed_signers`.
 fn scratch_repo(name: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("git-attest-lib-{name}-{}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("greensummit-lib-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(d.join("src/deep")).unwrap();
     std::fs::create_dir_all(d.join(".github")).unwrap();
     std::fs::write(d.join("src/main.rs"), "fn main() {}\n").unwrap();
-    std::fs::write(d.join(".github/attest-inputs"), "lint src\n").unwrap();
+    std::fs::write(d.join(".github/greensummit-inputs"), "lint src\n").unwrap();
     std::fs::write(
         d.join(".github/allowed_signers"),
         "x namespaces=\"amont-attest\" k\n",
@@ -617,7 +626,7 @@ fn the_library_answers_for_the_repository_it_is_given() {
         Some(true)
     );
     let (path, spec) = crate::spec::at(&repo, &tree).unwrap().unwrap();
-    assert_eq!(path, ".github/attest-inputs");
+    assert_eq!(path, ".github/greensummit-inputs");
     assert!(fingerprint(&repo, &tree, &spec, "lint").is_ok());
     assert!(canon(&repo, &tree).is_ok());
     assert!(check_coverage(&repo, &tree, &["lint".to_string()]).is_ok());
@@ -716,15 +725,15 @@ fn payload_gives_every_known_answer() {
             })
             .collect();
         let canon = all(&lines, "canon");
-        // The cases are LEGACY payloads captured from released producers:
+        // The cases are 1.x payloads captured from released producers:
         // their shape is the known answer, and since 1.10.0 the header and
-        // the producer word are the written (GREEN) set's.
+        // the producer word are the written (SUMMIT) set's.
         let captured = all(&lines, "payload");
         let [first, middle @ .., last] = captured.as_slice() else {
             panic!("{name}: a captured payload has a first and a last line")
         };
-        assert_eq!(*first, LEGACY.format, "{name}: a LEGACY capture");
-        let word = last.strip_prefix(&format!("{} ", LEGACY.producer));
+        assert_eq!(*first, CAPTURED.format, "{name}: a 1.x capture");
+        let word = last.strip_prefix(&format!("{} ", CAPTURED.producer));
         let mut want = format!("{}\n", WRITE.format);
         for l in middle {
             want.push_str(&format!("{l}\n"));
@@ -751,7 +760,7 @@ fn payload_gives_every_known_answer() {
 
 /// A scratch repository of `format`, for hashing.
 fn hash_repo(format: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("git-attest-hash-{format}-{}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("greensummit-hash-{format}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     assert!(std::process::Command::new("git")
@@ -789,10 +798,10 @@ fn fingerprint_gives_every_known_answer() {
         let a: Vec<&str> = args.split(' ').collect();
         let got = match word.as_str() {
             "implicit" => implicit_inputs(&a.iter().map(|s| s.to_string()).collect::<Vec<_>>()),
-            // The file's keys are the LEGACY domains' (captured before
-            // 1.10.0, never edited); the GREEN ones are below.
-            "key" => vec![key_in(repo(a[0]), &LEGACY, a[1], a[2]).unwrap()],
-            "canon-key" => vec![canon_key_in(repo(a[0]), &LEGACY, a[1]).unwrap()],
+            // The file's keys are the 1.x domains' (captured before
+            // 1.10.0, never edited); the written ones are below.
+            "key" => vec![key_in(repo(a[0]), &CAPTURED, a[1], a[2]).unwrap()],
+            "canon-key" => vec![canon_key_in(repo(a[0]), &CAPTURED, a[1]).unwrap()],
             other => panic!("{name}: a case opens with implicit, key or canon-key, not {other}"),
         };
         assert_eq!(got, out, "{name}");
@@ -802,10 +811,10 @@ fn fingerprint_gives_every_known_answer() {
     }
 }
 
-/// The keys written since 1.10.0, under the GREEN domains, computed with `git
+/// The keys written, under the SUMMIT domains, computed with `git
 /// hash-object --stdin` over SPEC's preimage outside any implementation.
 #[test]
-fn the_written_keys_are_the_green_known_answers() {
+fn the_written_keys_are_the_summit_known_answers() {
     // Not `hash_repo`: its directories are per process, and the vectors test
     // runs beside this one and removes them.
     /// A scratch repository, removed when the test ends, pass or fail.
@@ -817,7 +826,7 @@ fn the_written_keys_are_the_green_known_answers() {
     }
     let repo = |format: &str| {
         let repo_dir =
-            std::env::temp_dir().join(format!("git-attest-green-{format}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("greensummit-green-{format}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&repo_dir); // a leftover of an earlier run
         std::fs::create_dir_all(&repo_dir).unwrap();
         let object_format = format!("--object-format={format}");
@@ -834,19 +843,19 @@ fn the_written_keys_are_the_green_known_answers() {
     let sixty_four_hex_a = "a".repeat(64);
     assert_eq!(
         key(&s1.0, "test", &one).unwrap(),
-        "62afe1dcfad5ecad6411bc021491a6059e130d45"
+        "4b6f4029d30d1c213154e9a0b6f97c247439087e"
     );
     assert_eq!(
         canon_key(&s1.0, &one).unwrap(),
-        "9d4c3b018b800fd0f63afc83e541eefc6ee7e905"
+        "026aae42b3f64c730672396a3faecc175588cb39"
     );
     assert_eq!(
         key(&s2.0, "lint", &sixty_four_hex_a).unwrap(),
-        "5aba52156ea22ed73496557efdc57daf8e4a947daa06fec69b8911680b50f1dd"
+        "26248c795b8a032e6fae9f36a18f4bb410df9aaaeb96bcd17e97123d6f61badf"
     );
     assert_eq!(
         canon_key(&s2.0, &sixty_four_hex_a).unwrap(),
-        "6599732f0e8d1386df51a7f390d6677b4095ec8d337da2798b98fbf7c039474e"
+        "ae95cedad3b00e34391c9838db567ca5356dfdfa4f616c8676594c45daa97c69"
     );
 }
 
@@ -919,7 +928,7 @@ fn a_tree_git_cannot_list_has_no_known_spec() {
 
 /// A repository whose one commit tracks `files`, and that commit's tree.
 fn committed(name: &str, files: &[(&str, &str)]) -> (std::path::PathBuf, String) {
-    let d = std::env::temp_dir().join(format!("git-attest-cov-{name}-{}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("greensummit-cov-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     for (path, body) in files {
         let p = d.join(path);
@@ -971,7 +980,7 @@ type CoverageCase = (
 /// (decisions ADR-0037), and amont keeps only its wiring.
 #[test]
 fn check_coverage_answers_every_way_a_declaration_falls_short() {
-    const SPEC: &str = ".github/attest-inputs";
+    const SPEC: &str = ".github/greensummit-inputs";
     let cases: &[CoverageCase] = &[
         (
             "a gate declaring every tracked file is covered",
@@ -1069,7 +1078,7 @@ fn check_coverage_answers_every_way_a_declaration_falls_short() {
             "no spec cannot answer",
             &[("a.txt", "a")],
             &["g"],
-            Answer::Cannot("no .forgejo/attest-inputs or"),
+            Answer::Cannot("no .forgejo/greensummit-inputs or"),
         ),
         (
             "a glob invalidates the whole spec",
@@ -1081,7 +1090,7 @@ fn check_coverage_answers_every_way_a_declaration_falls_short() {
             "two specs cannot answer",
             &[
                 (SPEC, "g a.txt\n"),
-                (".forgejo/attest-inputs", "g a.txt\n"),
+                (".forgejo/greensummit-inputs", "g a.txt\n"),
                 ("a.txt", "a"),
             ],
             &["g"],

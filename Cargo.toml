@@ -1,9 +1,9 @@
 [package]
-name = "git-attest"
-version = "1.10.0"
+name = "greensummit"
+version = "2.0.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/fredericrous/attest"
+repository = "https://github.com/greenharness/greensummit"
 authors = ["Frederic Rousseau"]
 description = "Sign and verify attestations that a test suite already passed on a tree, so CI can skip it: the library and its command line"
 readme = "README.md"
@@ -18,11 +18,11 @@ rust-version = "1.74.0"
 # The library is the one implementation of the format (decisions ADR-0037):
 # amont links it at pre-push, and the binary is a thin command line over it.
 [lib]
-name = "git_attest"
+name = "greensummit"
 path = "src/lib.rs"
 
 [[bin]]
-name = "git-attest"
+name = "greensummit"
 path = "src/main.rs"
 
 # NO DEPENDENCIES, and this is load-bearing rather than an aesthetic.

@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 
 use crate::fingerprint::{canon, canon_key_in, fingerprint, key_in};
 use crate::format::{
-    canon_claim, field, input_fp, platform_matches, split_blocks, Names, GREEN, LEGACY,
-    LOCAL_PREFIX, MAX_BLOCKS,
+    canon_claim, field, input_fp, platform_matches, split_blocks, Names, LOCAL_PREFIX, MAX_BLOCKS,
+    SUMMIT,
 };
 use crate::git;
 use crate::notes::{sync_mirrors_of, Mirror};
@@ -40,14 +40,10 @@ pub struct Verdict {
     /// nothing is covered.
     pub gates: Vec<String>,
     pub trail: Vec<String>,
-    /// What became of `refs/notes/greengate-attest` and `…-inputs`, in that
+    /// What became of `refs/notes/greensummit` and `…-inputs`, in that
     /// order; `None` when the verifier stopped before reading any notes.
     pub notes: Option<(Mirror, Mirror)>,
-    /// The same for `refs/notes/amont-attest` and `…-inputs`, the LEGACY
-    /// names that are read until the census.
-    pub legacy_notes: Option<(Mirror, Mirror)>,
-    /// The namespace of every name set a block verified under (`greengate-attest`,
-    /// `amont-attest`), first-appearance order. Shown even without `explain`:
+    /// The namespace of every name set a block verified under (`greensummit`), first-appearance order. Shown even without `explain`:
     /// it is the line the rollout counts.
     pub verified_under: Vec<String>,
     /// Lines that report a change to the repository's refs. They are shown
@@ -67,7 +63,6 @@ impl Verdict {
             gates: Vec::new(),
             trail: vec![reason.into()],
             notes: None,
-            legacy_notes: None,
             verified_under: Vec::new(),
             loud: Vec::new(),
             warnings: Vec::new(),
@@ -250,7 +245,8 @@ impl Judge<'_> {
             PlanExempt::Unreadable => {
                 push_reason(
                     &mut self.trail,
-                    "cannot read amont.conf or attest-inputs; canonical trees are not used".into(),
+                    "cannot read amont.conf or greensummit-inputs; canonical trees are not used"
+                        .into(),
                 );
                 None
             }
@@ -537,37 +533,19 @@ pub fn evaluate(
             gates: Vec::new(),
             trail,
             notes: None,
-            legacy_notes: None,
             verified_under: Vec::new(),
             loud,
             warnings: Vec::new(),
         };
     };
 
-    // Each name set is synced on its own: a set origin does not have is
-    // `Deleted` (nothing judged, nothing lost), never "unreachable".
-    //
-    // holds-until: the census (2.0.0) drops the legacy set. Until a
-    // repository's first green note (writers write them since 1.10.0) origin
-    // has no greengate ref, so the green fetch fails and costs an `ls-remote`,
-    // and the legacy set is a second fetch: up to twice the calls of 1.8.0.
-    let green_sync = sync_mirrors_of(&root, &GREEN);
-    let green = (green_sync.notes, green_sync.inputs);
-    let silent = green_sync.origin_silent();
-    loud.extend(green_sync.loud);
-    // An origin that did not answer for the first set will not for the
-    // second: asking again would only double the wait.
-    let legacy = match silent {
-        Some(state) => (state, state),
-        None => {
-            let legacy_sync = sync_mirrors_of(&root, &LEGACY);
-            loud.extend(legacy_sync.loud);
-            (legacy_sync.notes, legacy_sync.inputs)
-        }
-    };
-    let notes = Some(green);
-    let legacy_notes = Some(legacy);
-    let states = [(GREEN, green), (LEGACY, legacy)];
+    // A ref origin does not have is `Deleted` (nothing judged, nothing
+    // lost), never "unreachable".
+    let synced = sync_mirrors_of(&root, &SUMMIT);
+    let summit = (synced.notes, synced.inputs);
+    loud.extend(synced.loud);
+    let notes = Some(summit);
+    let states = [(SUMMIT, summit)];
     for (names, (notes_mirror, inputs_mirror)) in &states {
         for (r, st) in [
             (names.notes_ref, *notes_mirror),
@@ -631,7 +609,6 @@ pub fn evaluate(
             gates: Vec::new(),
             trail,
             notes,
-            legacy_notes,
             verified_under: Vec::new(),
             loud,
             warnings: Vec::new(),
@@ -667,8 +644,6 @@ pub fn evaluate(
     // HEAD^2 because a PR checkout is a merge commit git made a moment ago,
     // whose second parent is the pushed tip that carries the note.
     //
-    // Per object, the green ref first; the legacy ref only when the green
-    // refs hold no note for it (a note is read whole under one name).
     for candidate in [head_tree.as_str(), "HEAD", "HEAD^2"] {
         let Some(object) = git::stdout_in(
             &judge.root,
@@ -755,7 +730,6 @@ pub fn evaluate(
         gates: judge.covered,
         trail: judge.trail,
         notes,
-        legacy_notes,
         verified_under: judge.verified_under,
         loud,
         warnings: judge.warnings,

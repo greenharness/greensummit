@@ -554,7 +554,7 @@ pub(crate) fn scrub(stderr: &str) -> String {
 }
 
 /// The same, into the local `notes_ref` only, with no remote involved: what
-/// `sign --no-push` writes under `refs/notes/attest-local/`.
+/// `sign --no-push` writes under `refs/notes/greensummit-local/`.
 pub fn publish_local(
     root: &Path,
     identity: Option<(&str, &str)>,

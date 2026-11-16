@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "git-attest"
-version = "1.10.0"
+name = "greensummit"
+version = "2.0.0"

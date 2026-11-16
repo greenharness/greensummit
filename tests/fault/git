@@ -2,21 +2,21 @@
 # A faulty git, for the fixtures that prove a fingerprint is never computed
 # from a git that failed. Prepended to PATH by tests/lib.sh's with_faulty_git;
 # everything but the injected failure is delegated to the real git, which is
-# named in ATTEST_REAL_GIT. ATTEST_FAULT selects the failure:
+# named in GREENSUMMIT_REAL_GIT. GREENSUMMIT_FAULT selects the failure:
 #
 #   ls-tree   print the first record of the listing, then exit 1
 #   cat-file  make `cat-file blob …` exit 1 (`-e` and --batch-check untouched)
 #   env       for `fetch` and `ls-remote`, append the GIT_TERMINAL_PROMPT and
-#             GIT_SSH_COMMAND they run with to ATTEST_FAULT_LOG, then run them
+#             GIT_SSH_COMMAND they run with to GREENSUMMIT_FAULT_LOG, then run them
 #   hang      `fetch` and `ls-remote` never answer (a host that drops SYNs):
 #             only the verifier's own deadline can end them; each call is
-#             logged to ATTEST_FAULT_LOG when set, and a fetch first takes
+#             logged to GREENSUMMIT_FAULT_LOG when set, and a fetch first takes
 #             the lock of every refspec destination, as a real fetch killed
 #             mid-write would leave it
 #
 # Both implementations spawn `git` from PATH, so one wrapper serves both.
-real=${ATTEST_REAL_GIT:?}
-case "${ATTEST_FAULT:-}:$*" in
+real=${GREENSUMMIT_REAL_GIT:?}
+case "${GREENSUMMIT_FAULT:-}:$*" in
     probe:*) echo attest-faulty-git; exit 0 ;;
     ls-tree:*" ls-tree "*|ls-tree:"ls-tree "*)
         # -z output: records end in NUL. One record, then a failure after it.
@@ -25,7 +25,7 @@ case "${ATTEST_FAULT:-}:$*" in
     cat-file:"cat-file blob "*|cat-file:*" cat-file blob "*)
         exit 1 ;;
     hang:*" fetch "*|hang:*" ls-remote "*|hang:"fetch "*|hang:"ls-remote "*)
-        [ -z "${ATTEST_FAULT_LOG:-}" ] || printf 'call\n' >> "$ATTEST_FAULT_LOG"
+        [ -z "${GREENSUMMIT_FAULT_LOG:-}" ] || printf 'call\n' >> "$GREENSUMMIT_FAULT_LOG"
         for a in "$@"; do
             case $a in
                 +*:*) dst=${a#*:}; lock=$("$real" rev-parse --git-path "$dst.lock")
@@ -35,6 +35,6 @@ case "${ATTEST_FAULT:-}:$*" in
         # exec: the killed pid IS the sleeper, so nothing lingers on a pipe.
         exec sleep 120 ;;
     env:*" fetch "*|env:*" ls-remote "*|env:"fetch "*|env:"ls-remote "*)
-        printf '%s|%s\n' "${GIT_TERMINAL_PROMPT-}" "${GIT_SSH_COMMAND-}" >> "${ATTEST_FAULT_LOG:?}" ;;
+        printf '%s|%s\n' "${GIT_TERMINAL_PROMPT-}" "${GIT_SSH_COMMAND-}" >> "${GREENSUMMIT_FAULT_LOG:?}" ;;
 esac
 exec "$real" "$@"

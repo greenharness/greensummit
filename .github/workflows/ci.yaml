@@ -20,8 +20,7 @@ permissions:
 # so must never skip. The attest step does not run there; its output is then
 # empty, which `|| '[]'` turns into "nothing covered" (fromJSON('') would
 # fail the job). `contents: write` on those jobs
-# is for pushing refs/notes/greengate-attest[-inputs] (amont-attest before
-# 1.10.0) and nothing else; a fork PR gets no
+# is for pushing refs/notes/greensummit[-inputs] and nothing else; a fork PR gets no
 # secret and a read-only token, and the sign step reports and succeeds.
 jobs:
   lint:
@@ -154,10 +153,10 @@ jobs:
           # Under target/, which is ignored: the producer's clean-tree guard
           # holds.
           case "$LEG" in
-            built) cargo build --release -q; path=target/release/git-attest ;;
+            built) cargo build --release -q; path=target/release/greensummit ;;
             release) path= ;;
-            broken) mkdir -p target/stubs; printf '#!/bin/sh\nexit 3\n' > target/stubs/git-attest; path=target/stubs/git-attest ;;
-            silent) mkdir -p target/stubs; printf '#!/bin/sh\nexit 0\n' > target/stubs/git-attest; path=target/stubs/git-attest ;;
+            broken) mkdir -p target/stubs; printf '#!/bin/sh\nexit 3\n' > target/stubs/greensummit; path=target/stubs/greensummit ;;
+            silent) mkdir -p target/stubs; printf '#!/bin/sh\nexit 0\n' > target/stubs/greensummit; path=target/stubs/greensummit ;;
           esac
           [ -z "$path" ] || chmod +x "$path"
           echo "path=$path" >> "$GITHUB_OUTPUT"
@@ -166,8 +165,7 @@ jobs:
           set -eu
           git init -q --bare "$RUNNER_TEMP/origin.git"
           git remote set-url origin "$RUNNER_TEMP/origin.git"
-          git update-ref -d refs/notes/amont-attest || true
-          git update-ref -d refs/notes/greengate-attest || true
+          git update-ref -d refs/notes/greensummit || true
           # `git notes add` writes an object and needs a committer identity;
           # a bare runner has none.
           git config user.email ci@example.org
@@ -186,31 +184,25 @@ jobs:
             echo "expected [], got: ${{ steps.bare.outputs.gates }}"; exit 1; }
           [ -z "${{ steps.bare.outputs.covered }}" ] || {
             echo "expected empty covered"; exit 1; }
-          # Both name sets are absent on this origin. The `release` leg runs
-          # the pinned release (RELEASE), which may predate the legacy_notes
-          # key and report the amont ref as notes: hence the fallback.
+          # The notes ref is absent on this origin.
           [ '${{ steps.bare.outputs.notes }}' = absent ] || {
             echo 'expected notes=absent, got ${{ steps.bare.outputs.notes }}'; exit 1; }
-          [ '${{ steps.bare.outputs.legacy_notes || steps.bare.outputs.notes }}' = absent ] || {
-            echo 'expected legacy_notes=absent, got ${{ steps.bare.outputs.legacy_notes }}'; exit 1; }
 
       # 2. Mint a real attestation over the tree this job checked out, and
-      #    prove the action finds, verifies and reports it. It is a LEGACY
-      #    (`amont-attest`) note, as 1.9 and earlier signed: still read during
-      #    the window.
+      #    prove the action finds, verifies and reports it.
       - name: sign this exact tree by hand
         run: |
           set -eu
           ssh-keygen -q -t ed25519 -N '' -C ci@example.org -f "$RUNNER_TEMP/k"
-          printf '%s namespaces="amont-attest,greengate-attest" %s\n' ci@example.org "$(cat "$RUNNER_TEMP/k.pub")" \
+          printf '%s namespaces="greensummit" %s\n' ci@example.org "$(cat "$RUNNER_TEMP/k.pub")" \
             > "$RUNNER_TEMP/ci-signers"
           tree=$(git rev-parse 'HEAD^{tree}')
-          printf 'amont-attest-v2\ntree %s\ngates pre-push-cargo-test pre-push-clippy\nplatform x86_64-linux\namont ci\n' \
+          printf 'greensummit-v2\ntree %s\ngates pre-push-cargo-test pre-push-clippy\nplatform x86_64-linux\ngreengate ci\n' \
             "$tree" > "$RUNNER_TEMP/p"
-          ssh-keygen -Y sign -n amont-attest -f "$RUNNER_TEMP/k" "$RUNNER_TEMP/p"
-          git notes --ref amont-attest add -f \
+          ssh-keygen -Y sign -n greensummit -f "$RUNNER_TEMP/k" "$RUNNER_TEMP/p"
+          git notes --ref greensummit add -f \
             -m "$(printf '%s\n\n%s' "$(cat "$RUNNER_TEMP/p")" "$(cat "$RUNNER_TEMP/p.sig")")" "$tree"
-          git push -q -f origin refs/notes/amont-attest:refs/notes/amont-attest
+          git push -q -f origin refs/notes/greensummit:refs/notes/greensummit
       - id: signed
         uses: ./
         with:
@@ -249,9 +241,9 @@ jobs:
         run: |
           set -eu
           {
-            echo 'key<<ATTEST_EOF'
+            echo 'key<<GREENSUMMIT_EOF'
             cat "$RUNNER_TEMP/k"
-            echo 'ATTEST_EOF'
+            echo 'GREENSUMMIT_EOF'
           } >> "$GITHUB_OUTPUT"
       - id: appended
         uses: ./sign
@@ -266,34 +258,12 @@ jobs:
           set -eu
           [ '${{ steps.appended.outputs.status }}' = local ] || { echo 'status: ${{ steps.appended.outputs.status }}'; exit 1; }
           tree=$(git rev-parse 'HEAD^{tree}')
-          # Every leg but `release` runs this tree's binary or sign.sh, which
-          # write the greengate names: that is required here. Only the
-          # `release` leg runs the pinned 1.9 binary, and it may write the
-          # amont names (the either-name fallback exists for it alone).
-          if [ "${{ matrix.binary }}" != release ]; then
-            git notes --ref attest-local/greengate-attest show "$tree" > /dev/null 2>&1 ||
-              { echo "the ${{ matrix.binary }} leg must write the greengate names"; exit 1; }
-            set_=greengate
-          elif git notes --ref attest-local/greengate-attest show "$tree" > /dev/null 2>&1; then
-            set_=greengate
-          else
-            set_=amont
-          fi
-          n=$(git notes --ref "attest-local/$set_-attest" show "$tree" | grep -c '^-----BEGIN SSH SIGNATURE-----$')
+          git notes --ref greensummit-local/greensummit show "$tree" > /dev/null 2>&1 ||
+            { echo "the ${{ matrix.binary }} leg must write the greensummit names"; exit 1; }
+          n=$(git notes --ref greensummit-local/greensummit show "$tree" | grep -c '^-----BEGIN SSH SIGNATURE-----$')
           [ "$n" = 1 ] || { echo "expected 1 unpushed block, got $n"; exit 1; }
-          n=$(git notes --ref amont-attest show "$tree" | grep -c '^-----BEGIN SSH SIGNATURE-----$')
+          n=$(git notes --ref greensummit show "$tree" | grep -c '^-----BEGIN SSH SIGNATURE-----$')
           [ "$n" = 1 ] || { echo "expected 1 block in the mirror, got $n"; exit 1; }
-          # A note is read whole under one name set, and the green one wins:
-          # for the verifier to read both blocks, the hand-written one is
-          # re-signed under the set the signer wrote, on origin too.
-          if [ "$set_" = greengate ]; then
-            sed -e '1s/^amont-attest-v2$/greengate-attest-v2/' -e 's/^amont ci$/greengate ci/' \
-              "$RUNNER_TEMP/p" > "$RUNNER_TEMP/pg"
-            ssh-keygen -Y sign -n greengate-attest -f "$RUNNER_TEMP/k" "$RUNNER_TEMP/pg"
-            git notes --ref greengate-attest add -f \
-              -m "$(printf '%s\n\n%s' "$(cat "$RUNNER_TEMP/pg")" "$(cat "$RUNNER_TEMP/pg.sig")")" "$tree"
-            git push -q -f origin refs/notes/greengate-attest:refs/notes/greengate-attest
-          fi
       - id: strict
         uses: ./
         with:
@@ -332,10 +302,9 @@ jobs:
           # Without include-local the unpushed block is not read at all.
           [ '${{ steps.nolocal.outputs.gates }}' = '["pre-push-cargo-test","pre-push-clippy"]' ] || {
             echo 'no include-local: ${{ steps.nolocal.outputs.gates }}'; exit 1; }
-          # The hand-written amont note is on origin in every leg, so its
-          # state is legacy_notes=fetched (a pre-1.9 binary calls it notes).
-          [ '${{ steps.nolocal.outputs.legacy_notes || steps.nolocal.outputs.notes }}' = fetched ] || {
-            echo 'legacy_notes: ${{ steps.nolocal.outputs.legacy_notes }}, notes: ${{ steps.nolocal.outputs.notes }}'; exit 1; }
+          # The hand-written note is on origin in every leg.
+          [ '${{ steps.nolocal.outputs.notes }}' = fetched ] || {
+            echo 'notes: ${{ steps.nolocal.outputs.notes }}'; exit 1; }
 
       # 5. Input fingerprints, with the real producer. Sign ci-fmt on this
       #    tree with the local key, move the tree with a commit that touches
@@ -345,12 +314,11 @@ jobs:
       - id: readkey2
         run: |
           set -eu
-          git notes --ref attest-local/greengate-attest remove "$(git rev-parse 'HEAD^{tree}')" 2>/dev/null || true
-          git notes --ref attest-local/amont-attest remove "$(git rev-parse 'HEAD^{tree}')" 2>/dev/null || true
+          git notes --ref greensummit-local/greensummit remove "$(git rev-parse 'HEAD^{tree}')" 2>/dev/null || true
           {
-            echo 'key<<ATTEST_EOF'
+            echo 'key<<GREENSUMMIT_EOF'
             cat "$RUNNER_TEMP/k"
-            echo 'ATTEST_EOF'
+            echo 'GREENSUMMIT_EOF'
           } >> "$GITHUB_OUTPUT"
       - id: fpsign
         uses: ./sign
@@ -364,12 +332,7 @@ jobs:
           set -eu
           [ '${{ steps.fpsign.outputs.inputs }}' = 1/1 ] || { echo 'inputs: ${{ steps.fpsign.outputs.inputs }}'; exit 1; }
           tree=$(git rev-parse 'HEAD^{tree}')
-          # Every leg but `release` writes the green names; the pinned release
-          # writes whichever set its version writes (amont before 1.10.0).
-          if [ "${{ matrix.binary }}" != release ]; then src=greengate
-          elif git notes --ref attest-local/greengate-attest show "$tree" > /dev/null 2>&1; then src=greengate
-          else src=amont; fi
-          git notes --ref "attest-local/$src-attest" show "$tree" | grep -q '^input ci-fmt [0-9a-f]\{40,64\}$'
+          git notes --ref greensummit-local/greensummit show "$tree" | grep -q '^input ci-fmt [0-9a-f]\{40,64\}$'
           echo unrelated > UNRELATED.md && git add UNRELATED.md && git commit -qm unrelated
       - id: fpmoved
         uses: ./
@@ -393,13 +356,9 @@ jobs:
           set -eu
           [ '${{ steps.fpinput.outputs.gates }}' = '[]' ] || { echo 'got: ${{ steps.fpinput.outputs.gates }}'; exit 1; }
           # Back to the original tree, and without the fingerprint-keyed
-          # block or the greengate copy of the hand-written note: the steps
-          # below reason about the amont tree note alone.
+          # block: the steps below reason about the tree note alone.
           git reset -q --hard HEAD~2
-          git update-ref -d refs/notes/attest-local/greengate-attest-inputs
-          git update-ref -d refs/notes/attest-local/amont-attest-inputs
-          git push -q origin :refs/notes/greengate-attest 2> /dev/null || true
-          git update-ref -d refs/notes/greengate-attest
+          git update-ref -d refs/notes/greensummit-local/greensummit-inputs
 
       # 6. The substring bug this project exists to fix. `pre-push-cargo-test`
       #    is a substring of the covered `…-slow`, so the old string form would
@@ -408,12 +367,12 @@ jobs:
         run: |
           set -eu
           tree=$(git rev-parse 'HEAD^{tree}')
-          printf 'amont-attest-v2\ntree %s\ngates pre-push-cargo-test-slow\nplatform x86_64-linux\namont ci\n' \
+          printf 'greensummit-v2\ntree %s\ngates pre-push-cargo-test-slow\nplatform x86_64-linux\ngreengate ci\n' \
             "$tree" > "$RUNNER_TEMP/p2"
-          ssh-keygen -Y sign -n amont-attest -f "$RUNNER_TEMP/k" "$RUNNER_TEMP/p2"
-          git notes --ref amont-attest add -f \
+          ssh-keygen -Y sign -n greensummit -f "$RUNNER_TEMP/k" "$RUNNER_TEMP/p2"
+          git notes --ref greensummit add -f \
             -m "$(printf '%s\n\n%s' "$(cat "$RUNNER_TEMP/p2")" "$(cat "$RUNNER_TEMP/p2.sig")")" "$tree"
-          git push -q -f origin refs/notes/amont-attest:refs/notes/amont-attest
+          git push -q -f origin refs/notes/greensummit:refs/notes/greensummit
       - id: collide
         uses: ./
         with:
@@ -432,7 +391,7 @@ jobs:
         run: echo "the real suite would still run — correct"
 
       # 7. The signing key never reaches a child process's environment. A spy
-      #    ssh-keygen first on PATH records whether ATTEST_KEY is set when the
+      #    ssh-keygen first on PATH records whether GREENSUMMIT_KEY is set when the
       #    sign action runs it, then execs the real one — by the absolute path
       #    taken BEFORE PATH changes, or it would call itself. LAST in the job:
       #    GITHUB_PATH cannot be undone for the steps after it.
@@ -441,7 +400,7 @@ jobs:
           set -eu
           real=$(command -v ssh-keygen)
           mkdir -p "$RUNNER_TEMP/spy"
-          printf '#!/usr/bin/env bash\nprintf "%%s\\n" "${ATTEST_KEY+leaked}" >> "%s/spy.log"\nexec "%s" "$@"\n' \
+          printf '#!/usr/bin/env bash\nprintf "%%s\\n" "${GREENSUMMIT_KEY+leaked}" >> "%s/spy.log"\nexec "%s" "$@"\n' \
             "$RUNNER_TEMP" "$real" > "$RUNNER_TEMP/spy/ssh-keygen"
           chmod +x "$RUNNER_TEMP/spy/ssh-keygen"
           : > "$RUNNER_TEMP/spy.log"
@@ -450,9 +409,9 @@ jobs:
         run: |
           set -eu
           {
-            echo 'key<<ATTEST_EOF'
+            echo 'key<<GREENSUMMIT_EOF'
             cat "$RUNNER_TEMP/k"
-            echo 'ATTEST_EOF'
+            echo 'GREENSUMMIT_EOF'
           } >> "$GITHUB_OUTPUT"
       - id: spied
         uses: ./sign
@@ -466,7 +425,7 @@ jobs:
           set -eu
           [ '${{ steps.spied.outputs.status }}' = local ] || { echo 'status: ${{ steps.spied.outputs.status }}'; exit 1; }
           [ -s "$RUNNER_TEMP/spy.log" ] || { echo "the spy was never run"; exit 1; }
-          if grep -qx leaked "$RUNNER_TEMP/spy.log"; then echo "ATTEST_KEY reached ssh-keygen"; exit 1; fi
+          if grep -qx leaked "$RUNNER_TEMP/spy.log"; then echo "GREENSUMMIT_KEY reached ssh-keygen"; exit 1; fi
           echo "ssh-keygen ran $(wc -l < "$RUNNER_TEMP/spy.log") time(s) without the key in its environment"
 
   msrv:

@@ -77,8 +77,8 @@ jobs:
           {
             grep '^#' RELEASE
             echo "version $VERSION"
-            for f in art/git-attest-"$VERSION"-*.tar.gz; do
-              t=${f#art/git-attest-"$VERSION"-}; t=${t%.tar.gz}
+            for f in art/greensummit-"$VERSION"-*.tar.gz; do
+              t=${f#art/greensummit-"$VERSION"-}; t=${t%.tar.gz}
               printf '%-26s %s\n' "$t" "$(sha256sum < "$f" | awk '{print $1}')"
             done | sort
           } > "$RUNNER_TEMP/RELEASE"

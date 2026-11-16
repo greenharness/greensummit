@@ -1,6 +1,6 @@
 # Sign, from CI, the gates that just passed on this exact tree — so the next
 # job that checks out the same tree (a re-run, the push to main after a merge)
-# can skip them. `fredericrous/attest` is the verifying half.
+# can skip them. `greenharness/greensummit` is the verifying half.
 #
 # Put this step LAST, after every gate it names, and never under
 # `if: always()`: the default `success()` is what guarantees a failed gate is
@@ -8,13 +8,13 @@
 # ref; on a fork pull request there is no secret and a read-only token, and
 # both paths simply report and succeed.
 #
-# With a committed `.github/attest-inputs` the block also carries each signed
+# With a committed `.github/greensummit-inputs` the block also carries each signed
 # gate's input fingerprint and is filed under it in a second notes ref, so a
 # later tree that differs only outside a gate's declared inputs still skips
 # it. SPEC.md, "Input fingerprints".
 #
-# Forgejo uses the same file: `uses: https://github.com/fredericrous/attest/sign@v1`.
-name: attest-sign
+# Forgejo uses the same file: `uses: https://github.com/greenharness/greensummit/sign@v2`.
+name: greensummit-sign
 description: Sign an attestation for the gates that passed on this tree, and push it
 branding:
   icon: edit-3
@@ -56,8 +56,7 @@ inputs:
     default: origin
   push:
     description: >-
-      Push refs/notes/greengate-attest after signing (refs/notes/amont-attest
-      before 1.10.0). `false` appends to the local ref only.
+      Push refs/notes/greensummit after signing. `false` appends to the local ref only.
     required: false
     default: "true"
   allow-dirty:
@@ -68,8 +67,7 @@ inputs:
     default: "false"
   producer:
     description: >-
-      The `greengate <name>` line of the payload (`amont <name>` before
-      1.10.0). Keep it stable across runs — no run id, no timestamp — so a re-run recognises its own block as already
+      The `greengate <name>` line of the payload. Keep it stable across runs — no run id, no timestamp — so a re-run recognises its own block as already
       present instead of appending it again.
     required: false
     default: attest-sign
@@ -79,7 +77,7 @@ inputs:
     default: "5"
   binary:
     description: >-
-      TEST-ONLY: a git-attest binary to run instead of the pinned release,
+      TEST-ONLY: a greensummit binary to run instead of the pinned release,
       relative to the workspace (see the verifying action). Setting it prints
       a notice.
     required: false
@@ -103,7 +101,7 @@ outputs:
   inputs:
     description: >-
       Input fingerprints, as published/wanted: how many of the signed gates
-      the committed attest-inputs spec declares, and how many of those were
+      the committed greensummit-inputs spec declares, and how many of those were
       published under their fingerprint key. `0/0` without a spec.
     value: ${{ steps.sign.outputs.inputs }}
 
@@ -113,49 +111,49 @@ runs:
     - id: sign
       shell: bash
       env:
-        ATTEST_KEY: ${{ inputs.key }}
-        ATTEST_GATES: ${{ inputs.gates }}
-        ATTEST_PLATFORM: ${{ inputs.platform }}
-        ATTEST_OBJECT: ${{ inputs.object }}
-        ATTEST_REMOTE: ${{ inputs.remote }}
-        ATTEST_PUSH: ${{ inputs.push }}
-        ATTEST_ALLOW_DIRTY: ${{ inputs.allow-dirty }}
-        ATTEST_PRODUCER: ${{ inputs.producer }}
-        ATTEST_ATTEMPTS: ${{ inputs.attempts }}
-        ATTEST_BINARY: ${{ inputs.binary }}
+        GREENSUMMIT_KEY: ${{ inputs.key }}
+        GREENSUMMIT_GATES: ${{ inputs.gates }}
+        GREENSUMMIT_PLATFORM: ${{ inputs.platform }}
+        GREENSUMMIT_OBJECT: ${{ inputs.object }}
+        GREENSUMMIT_REMOTE: ${{ inputs.remote }}
+        GREENSUMMIT_PUSH: ${{ inputs.push }}
+        GREENSUMMIT_ALLOW_DIRTY: ${{ inputs.allow-dirty }}
+        GREENSUMMIT_PRODUCER: ${{ inputs.producer }}
+        GREENSUMMIT_ATTEMPTS: ${{ inputs.attempts }}
+        GREENSUMMIT_BINARY: ${{ inputs.binary }}
       run: |
         set -u
         # The key leaves the ENVIRONMENT first: a step's env is inherited by
         # every process it starts — git, ssh-keygen, any hook or credential
         # helper — so it is copied into a shell variable and unset. From there
-        # it reaches `git-attest sign` (or sign.sh) on stdin only: printf is a
+        # it reaches `greensummit sign` (or sign.sh) on stdin only: printf is a
         # builtin, so it is never on an argv, and never in the script text.
         # (Each then holds it in a 0600 file of its own under a private
         # temporary directory, removed on every exit — ssh-keygen reads keys
         # from nowhere else.)
-        key=$ATTEST_KEY
-        unset ATTEST_KEY
+        key=$GREENSUMMIT_KEY
+        unset GREENSUMMIT_KEY
         # Positional parameters rather than a bash array (bash 3.2 on macOS
         # runners, under `set -u`).
         set --
-        if [ -n "$ATTEST_PLATFORM" ]; then set -- "$@" --platform "$ATTEST_PLATFORM"; fi
-        if [ -n "$ATTEST_OBJECT" ];   then set -- "$@" --object   "$ATTEST_OBJECT";   fi
-        if [ -n "$ATTEST_REMOTE" ];   then set -- "$@" --remote   "$ATTEST_REMOTE";   fi
-        if [ -n "$ATTEST_PRODUCER" ]; then set -- "$@" --producer "$ATTEST_PRODUCER"; fi
-        if [ -n "$ATTEST_ATTEMPTS" ]; then set -- "$@" --attempts "$ATTEST_ATTEMPTS"; fi
-        [ "$ATTEST_PUSH" = true ]        || set -- "$@" --no-push
-        [ "$ATTEST_ALLOW_DIRTY" != true ] || set -- "$@" --allow-dirty
+        if [ -n "$GREENSUMMIT_PLATFORM" ]; then set -- "$@" --platform "$GREENSUMMIT_PLATFORM"; fi
+        if [ -n "$GREENSUMMIT_OBJECT" ];   then set -- "$@" --object   "$GREENSUMMIT_OBJECT";   fi
+        if [ -n "$GREENSUMMIT_REMOTE" ];   then set -- "$@" --remote   "$GREENSUMMIT_REMOTE";   fi
+        if [ -n "$GREENSUMMIT_PRODUCER" ]; then set -- "$@" --producer "$GREENSUMMIT_PRODUCER"; fi
+        if [ -n "$GREENSUMMIT_ATTEMPTS" ]; then set -- "$@" --attempts "$GREENSUMMIT_ATTEMPTS"; fi
+        [ "$GREENSUMMIT_PUSH" = true ]        || set -- "$@" --no-push
+        [ "$GREENSUMMIT_ALLOW_DIRTY" != true ] || set -- "$@" --allow-dirty
         # The binary: the pinned release, or (tests only) the one given.
         bin= why=
-        if [ -n "$ATTEST_BINARY" ]; then
-          echo "::notice title=attest::binary: is test-only; running $ATTEST_BINARY, not the pinned release"
-          bin=$ATTEST_BINARY
+        if [ -n "$GREENSUMMIT_BINARY" ]; then
+          echo "::notice title=greensummit::binary: is test-only; running $GREENSUMMIT_BINARY, not the pinned release"
+          bin=$GREENSUMMIT_BINARY
         else
           err=$(mktemp)
           bin=$(bash "$GITHUB_ACTION_PATH/../fetch.sh" 2> "$err") || bin=
           cat "$err" >&2
           if [ -z "$bin" ]; then
-            why=$(tail -n 1 "$err" | sed 's/^attest: //')
+            why=$(tail -n 1 "$err" | sed 's/^greensummit: //')
             [ -n "$why" ] || why="fetch.sh named no binary"
           fi
           rm -f "$err"
@@ -164,21 +162,21 @@ runs:
         # to end the step.
         out=
         if [ -n "$bin" ]; then
-          if out=$(printf '%s' "$key" | "$bin" sign --github-output --gates "$ATTEST_GATES" "$@"); then
+          if out=$(printf '%s' "$key" | "$bin" sign --github-output --gates "$GREENSUMMIT_GATES" "$@"); then
             case $'\n'"$out" in
               *$'\n'status=*) ;;
-              *) why="git-attest sign wrote no status= line" ;;
+              *) why="greensummit sign wrote no status= line" ;;
             esac
           else
-            why="git-attest sign exited $?"
+            why="greensummit sign exited $?"
           fi
         fi
         if [ -n "$why" ]; then
-          echo "::warning title=attest::$why; sign.sh signs instead"
+          echo "::warning title=greensummit::$why; sign.sh signs instead"
           # Outputs exist whatever happens; a script that could not even start
           # still yields a well-formed, negative answer.
           out=$(printf '%s' "$key" \
-            | ATTEST_NO_DEPRECATION=1 bash "$GITHUB_ACTION_PATH/sign.sh" --github-output --gates "$ATTEST_GATES" "$@") \
+            | GREENSUMMIT_NO_DEPRECATION=1 bash "$GITHUB_ACTION_PATH/sign.sh" --github-output --gates "$GREENSUMMIT_GATES" "$@") \
             || out=$(printf '%s\nstatus=error\nsigned=false\npushed=false\ngates=\ninputs=0/0' "$out")
         fi
         printf '%s\n' "$out" >> "$GITHUB_OUTPUT"

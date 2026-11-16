@@ -1,102 +1,61 @@
-# `greengate-attest-v2` (formerly `amont-attest-v2`)
+# `greensummit-v2`
 
 A signed statement that a named set of checks passed against a specific git
 **tree**, on a specific platform. It exists so CI can skip work a developer's
 machine already did, without CI having to trust that machine.
 
 This document is the contract. Two implementations in this repository —
-`verify.sh` and `git-attest` — target it, and `tests/conformance.sh` is what
+`verify.sh` and `greensummit` — target it, and `tests/conformance.sh` is what
 proves they agree. A third implementation should pass that suite.
 
-## Why the examples still say `amont`
+## Names
 
-The format was born inside [amont](https://github.com/fredericrous/amont), now
-greengate, under `amont-attest` names that were long held frozen. Since
-1.10.0 every producer writes the `greengate-attest` names instead (next
-section); the `amont-attest` notes already signed keep verifying for a
-30-day window, then a census retires them. The examples below keep the
-`amont-attest` spelling they were written in.
+One name set (decisions ADR-0072, which hard-cuts the 1.x names with no
+window):
 
-## Names: `greengate-attest` and the older `amont-attest`
+| | name |
+|---|---|
+| format header | `greensummit-v2` |
+| notes ref | `refs/notes/greensummit` |
+| inputs ref | `refs/notes/greensummit-inputs` |
+| SSH namespace (`-n`) | `greensummit` |
+| input-key domain | `greensummit-input` |
+| canonical-key domain | `greensummit-canon` |
+| producer line | `greengate <producer>` |
+| unpushed blocks | `refs/notes/greensummit-local/greensummit[-inputs]` |
 
-Two complete name sets exist (decisions ADR-0068, which replaces the old
-"frozen forever" reading):
-
-| | LEGACY (written through 1.9, still read) | GREEN (written since 1.10.0, read first) |
-|---|---|---|
-| format header | `amont-attest-v2` | `greengate-attest-v2` |
-| notes ref | `refs/notes/amont-attest` | `refs/notes/greengate-attest` |
-| inputs ref | `refs/notes/amont-attest-inputs` | `refs/notes/greengate-attest-inputs` |
-| SSH namespace (`-n`) | `amont-attest` | `greengate-attest` |
-| input-key domain | `amont-attest-input` | `greengate-attest-input` |
-| canonical-key domain | `amont-attest-canon` | `greengate-attest-canon` |
-| producer line | `amont <producer>` | `greengate <producer>` |
-
-Everything in this document that names an `amont-attest` string describes the
-LEGACY set; read it as "the set the note was written under". A producer since
-1.10.0 writes the GREEN spelling of each: the `greengate-attest-v2` header, the
-`greengate <producer>` line, `-n greengate-attest`, the GREEN key domains, and
-`refs/notes/greengate-attest[-inputs]` (`refs/notes/attest-local/greengate-attest[-inputs]`
-for an unpushed block).
-
-- **Reading order.** A verifier reads the GREEN ref first, and the LEGACY ref
-  only for an object (a tree, a commit, an input-fingerprint key, a canonical
-  key) the GREEN refs hold no note for. A note that exists but does not verify
-  does not send the verifier to the other ref. Both refs are fetched, each name
-  set on its own: a set origin lacks is `absent`, which judges nothing from it
-  and changes no verdict from the other.
-- **A note is read whole under one name.** Its header decides: a
-  `greengate-attest-v2` block is checked with `-n greengate-attest` and the
-  GREEN domains, an `amont-attest-v2` block with the LEGACY ones, never mixed.
-  The inputs ref pairs the same way: a note read from the GREEN notes ref pairs
-  only with the GREEN inputs ref and key domains, a LEGACY one only with the
-  LEGACY pair, so an old signature cannot be replayed as a new one, nor the
-  reverse. A block whose header names the other set than the ref it was found
-  in is refused ("is not `<header>`").
-- **Local mirrors** (`refs/notes/attest-local/…`) follow the same pairing and
-  order.
-- **What is printed.** For each name set a block COVERED something under
-  (its signature verified and it added at least one gate to the answer), the
-  verifier prints `attest: verified under greengate-attest` or `attest:
-  verified under amont-attest` on stderr, once per set, in every mode
-  (`--quiet` and `explain` included), and not inside the `explain` trail:
-  a library caller reads `verified_under` and prints it. A valid signature
-  that covers nothing
-  prints no such line. A note the notes ref lists but git cannot read is
-  still a note: the other set is not read for that object. The
-  action reports the GREEN refs' state as `notes` and `inputs_notes`, the
-  LEGACY refs' as `legacy_notes` and `legacy_inputs_notes`.
-- **The window.** Writers write the GREEN set since 1.10.0 (`git-attest sign`,
-  `sign/sign.sh`, and every dependent that signs with the Rust constants
-  `format::FORMAT`, `NOTES_REF`, `INPUTS_REF`, `NAMESPACE`, which equal
-  `format::GREEN`; `format::WRITE` is the one owner). Nothing writes the LEGACY
-  set any more. From the day that release is installed, both sets verify for
-  30 days (ADR-0068); after it a census (2.0.0) removes the LEGACY reads, the
-  `amont-attest` signer namespaces and the LEGACY refs on every remote. A
-  signer must be listed with `namespaces="greengate-attest"` (both, during the
-  window) for its new notes to verify: a verifier that cannot verify one runs
-  the gate, as for any absent note.
-- **A green note hides its object's legacy blocks.** A note is read whole under
-  one name set, and the green note wins for its object. So a tree signed by both
-  a 1.9 `sign@v1` and a Phase 4 laptop runs its suite until CI also signs green.
-  `v1` therefore moves to 1.10.0 in the same step as the laptop's Phase 4
-  install. Until then the old notes verify as before.
-- **The caret hazard.** A dependent with a caret `1.9` pin resolves 1.10 on any
-  build without `--locked`, or after `cargo update`, and its attest writes switch
-  to green before its own switch. Dependents pin `~1.9` until they take the
-  writer switch, then `1.10`.
+- **One set, no fallback.** A verifier reads these names and no others. A note
+  filed under `amont-attest` or `greengate-attest` (header, refs, namespace or
+  domains) is absent: the gate runs, and a re-push re-signs under the names
+  above. The old refs on remotes are left alone and never read.
+- **A note is read whole under the one name.** Its header decides: a
+  `greensummit-v2` block is checked with `-n greensummit` and the domains
+  above. A block whose header is another one is absent ("is not `<header>`").
+- **What is printed.** For a block that COVERED something (its signature
+  verified and it added at least one gate to the answer), the verifier prints
+  `greensummit: verified under greensummit` on stderr, in every mode (`--quiet`
+  and `explain` included), and not inside the `explain` trail: a library caller
+  reads `verified_under` and prints it. A valid signature that covers nothing
+  prints no such line. A note the notes ref lists but git cannot read is still
+  a note. The action reports the refs' state as `notes` and `inputs_notes`.
+- **Writers.** `greensummit sign`, `sign/sign.sh`, and every dependent that
+  signs with the Rust constants `format::FORMAT`, `NOTES_REF`, `INPUTS_REF`,
+  `NAMESPACE` (equal to `format::SUMMIT`; `format::WRITE` is the one owner).
+  A signer must be listed with `namespaces="greensummit"` for its notes to
+  verify: a verifier that cannot verify one runs the gate, as for any absent
+  note.
 
 ## The note
 
-One note per attested object, in `refs/notes/amont-attest`. A note holds one
+One note per attested object, in `refs/notes/greensummit`. A note holds one
 or more **blocks**, each a payload and its signature:
 
 ```
-amont-attest-v2
+greensummit-v2
 tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904
 gates pre-push-cargo-test pre-push-clippy
 platform aarch64-macos
-amont 1.23.0
+greengate 1.23.0
 
 -----BEGIN SSH SIGNATURE-----
 U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg…
@@ -110,13 +69,13 @@ single most common way to get an implementation wrong.
 
 | line | meaning |
 |---|---|
-| `amont-attest-v2` | format token, always first. An unrecognised value means **absent** — see below. |
+| `greensummit-v2` | format token, always first. An unrecognised value means **absent** — see below. |
 | `tree <oid>` | the git tree the checks ran against |
 | `gates <names…>` | space-separated names of checks that **passed**. Never empty in a valid note. |
 | `platform <arch>-<os>` | where they ran, e.g. `x86_64-linux`, `aarch64-macos`, `x86_64-windows` |
 | `input <gate> <fp>` | optional; see "Input fingerprints" |
 | `canon <oid>` | optional; see "Canonical tree" |
-| `amont <version>` | the producer version, informational |
+| `greengate <version>` | the producer version, informational |
 
 `tree`, `gates` and `platform` are **required**. A v2 payload missing any of
 them is not a valid note and covers nothing — `platform` included, even for a
@@ -129,7 +88,7 @@ every field after an insertion rather than failing. Where a field appears more
 than once, the **first** occurrence wins and the rest are ignored.
 
 **Signature** — an armored `ssh-keygen -Y sign` block, namespace
-`amont-attest`, separated from the payload by a blank line.
+`greensummit`, separated from the payload by a blank line.
 
 ### Several blocks in one note
 
@@ -138,21 +97,21 @@ tree attests it on `x86_64-linux`. One note per object, so both statements
 live in the same note, as blocks separated by one or more blank lines:
 
 ```
-amont-attest-v2
+greensummit-v2
 tree 4b825dc6…
 gates pre-push-cargo-test
 platform aarch64-macos
-amont 1.34.0
+greengate 1.34.0
 
 -----BEGIN SSH SIGNATURE-----
 …
 -----END SSH SIGNATURE-----
 
-amont-attest-v2
+greensummit-v2
 tree 4b825dc6…
 gates pre-push-cargo-test ci-fmt
 platform x86_64-linux
-amont attest-sign
+greengate attest-sign
 
 -----BEGIN SSH SIGNATURE-----
 …
@@ -221,9 +180,9 @@ itself and has no such gap.
 A verifier reports a gate of a block as covered when **all** of these hold.
 Anything else, including any error, reports nothing covered:
 
-1. the payload's first line is exactly `amont-attest-v2`;
+1. the payload's first line is exactly `greensummit-v2`;
 2. `gates` is non-empty and names the gate;
-3. `ssh-keygen -Y verify -n amont-attest` succeeds against an `allowed_signers`
+3. `ssh-keygen -Y verify -n greensummit` succeeds against an `allowed_signers`
    file **committed in the consuming repository**, for a principal that file
    names;
 4. the gate qualifies by tree **or** by fingerprint: `tree` equals the tree
@@ -237,11 +196,10 @@ list, is a claim inside the payload, and only a verified payload may make
 one.
 
 ```
-you@example.com namespaces="amont-attest,greengate-attest" ssh-ed25519 AAAAC3Nza…
+you@example.com namespaces="greensummit" ssh-ed25519 AAAAC3Nza…
 ```
 
-Both namespaces during the window (see "Names"); `greengate-attest` alone after
-the census.
+The namespace is `greensummit` alone (see "Names").
 
 ### Platform
 
@@ -282,10 +240,10 @@ key is in the file, and that is the identity to verify as. A verifier may let
 its caller narrow this to one identity; it must not default to a guess such as
 the file's first entry, which silently uncovers every other signer.
 
-Two things pin the namespace. The `-n amont-attest` on `verify` rejects a
+Two things pin the namespace. The `-n greensummit` on `verify` rejects a
 signature whose embedded namespace is anything else, which is what stops a
 signature minted for another purpose — a signed commit, say — being replayed
-here. The `namespaces="amont-attest"` option in the file works the other way:
+here. The `namespaces="greensummit"` option in the file works the other way:
 it stops this key being trusted for anything else, should the same file ever
 be reused as `gpg.ssh.allowedSignersFile`.
 
@@ -294,7 +252,7 @@ change to who may skip CI**. Anyone who can push a branch and the notes ref
 can add a key there and attest the same tree with it. That is the trust level
 of editing a workflow file, no more — but repositories that guard
 `.github/workflows/` with CODEOWNERS or required review should guard
-`allowed_signers` the same way — and `attest-inputs` too, once it exists
+`allowed_signers` the same way — and `greensummit-inputs` too, once it exists
 (see "Input fingerprints").
 
 #### Platform-bound principals
@@ -314,7 +272,7 @@ is checked, and any bound one refuses. Every other principal, including
 before.
 
 Add a bound principal to an `allowed_signers` file only after every verifier
-that reads that file (the git-attest binary, `verify.sh`, the action's pinned
+that reads that file (the greensummit binary, `verify.sh`, the action's pinned
 release) runs a version with this rule: an older verifier ignores the suffix
 and accepts the block on any platform.
 
@@ -326,7 +284,7 @@ commit whenever base moved. A gate's result depends on the files it reads, so
 a repository may declare those files once, and a gate is then covered on any
 tree whose declared inputs are **byte-identical** to the attested ones.
 
-**The spec.** `.forgejo/attest-inputs`, then `.github/attest-inputs`, read from
+**The spec.** `.forgejo/greensummit-inputs`, then `.github/greensummit-inputs`, read from
 the tree being verified or signed (`git cat-file blob <tree>:<path>`), never
 from the working copy. Missing means "no fingerprint route", silently.
 Unreadable or invalid disables the route and is reported. Both present
@@ -370,7 +328,7 @@ root:
 
 ```
 B  = git ls-tree -r -z --full-tree T -- \
-       .forgejo/attest-inputs .github/attest-inputs .gitmodules \
+       .forgejo/greensummit-inputs .github/greensummit-inputs .gitmodules \
        <.gitattributes at the root and at every ancestor directory of every
         declared path of g, deduplicated> \
        <g's declared paths, in spec order>
@@ -409,8 +367,8 @@ oid of 40 or 64 lowercase hex digits; the first occurrence per gate wins.
 Producers before 1.3.0 write no such line; verifiers before 1.3.0 ignore it.
 
 **The synthetic key.** `K(g, fp)` is `git hash-object --stdin` over exactly
-the bytes `amont-attest-input <g> <fp>\n`. Producers attach the block under
-`K` in a **second notes ref, `refs/notes/amont-attest-inputs`**; a verifier
+the bytes `greensummit-input <g> <fp>\n`. Producers attach the block under
+`K` in a **second notes ref, `refs/notes/greensummit-inputs`**; a verifier
 computes `fp` on the checked-out tree and looks `K` up there. Every key in
 that ref is an oid that is not an object — `git notes` accepts that, and
 `git notes list` shows it, by design. **Never run `git notes prune` on that
@@ -460,11 +418,11 @@ the content id of `amont-provenance-v1` (amont's `docs/provenance.md`), which
 ignores whether a plan exists.
 
 **Opt-out.** A repository whose gate reads the contents of a plan writes
-`@plan-exempt off` in its `attest-inputs` (1.6.0). Every producer and verifier
+`@plan-exempt off` in its `greensummit-inputs` (1.6.0). Every producer and verifier
 reads one policy, `plan_exempt_off(T)`, from the committed bytes of `T`. It is
 off when either holds:
 
-- a line of `T:.forgejo/attest-inputs` or `T:.github/attest-inputs` is the
+- a line of `T:.forgejo/greensummit-inputs` or `T:.github/greensummit-inputs` is the
   directive: blanks around and between the words `@plan-exempt` and `off`,
   nothing else. It is found even in a spec that is otherwise invalid, since
   off only narrows;
@@ -473,7 +431,7 @@ off when either holds:
   that is not exactly those three words does not match. This form is
   **deprecated** and read until 2.0.0; a verifier that finds it alone says
   `deprecated: planExempt in amont.conf; also write @plan-exempt off in
-  attest-inputs`.
+  greensummit-inputs`.
 
 It fails narrow: an `ls-tree` that fails, or a listed file that cannot be
 read, is off; only successful listings and readings that hold neither form
@@ -484,7 +442,7 @@ a verifier ignores canonical equality in every block, whichever key found it.
 directive as an invalid gate name: that disables its input fingerprints, but
 not its canonical route. A repository that opts out therefore commits both
 `@plan-exempt off` and `set planExempt off` until no consumer older than 1.6.0
-remains (decisions ADR-0037). A repository whose `attest-inputs` declares
+remains (decisions ADR-0037). A repository whose `greensummit-inputs` declares
 gates gains the directive only once its own consumers are at 1.6.0 or later,
 since to older ones the directive invalidates those gates' fingerprints.
 
@@ -494,7 +452,7 @@ an oid of 40 or 64 lowercase hex digits, after the `input` lines and before
 are read by prefix), so an old verifier only loses a skip.
 
 **The key.** `Kc(c)` is `git hash-object --stdin` over exactly the bytes
-`amont-attest-canon <c>\n`, in the same second ref, `refs/notes/amont-attest-inputs`;
+`greensummit-canon <c>\n`, in the same second ref, `refs/notes/greensummit-inputs`;
 there is no third ref to mirror.
 
 **The rule.** A gate of a verified block is covered when the block's tree is
@@ -520,11 +478,9 @@ that a cited plan exists is re-run when one is added, deleted or renamed.
 
 Origin is the only place an attestation can be revoked — by deleting or
 rewriting its notes refs — so a verifier treats
-`refs/notes/amont-attest` and `refs/notes/amont-attest-inputs` in the
+`refs/notes/greensummit` and `refs/notes/greensummit-inputs` in the
 repository it runs in as **origin's mirror**, never as a store of its own
-(1.4.0); the `greengate-attest` pair (see "Names") is mirrored the same way.
-It syncs each name set on its own, the GREEN pair first and the LEGACY pair
-second, each pair fetched in one call; below, "the refs" are one pair's, and:
+(1.4.0). The pair is fetched in one call; below, "the refs" are that pair, and:
 
 | outcome | `notes=` | the local ref |
 |---|---|---|
@@ -568,26 +524,19 @@ the verifier's own: a verifier that waits for a password or a dead host has
 broken "exit 0" as surely as a crash. A silent origin costs one call, at
 most 15 s; one that fails fast, two, at most 30 s; the worst case, an origin
 that answers `ls-remote` but stalls the second fetch, three, at most 45 s.
-These are the costs of ONE name set. A second set is synced only when the first
-got an answer: an origin that did not answer (a call for the first set timed
-out, or both its refs are `unreachable`) is not asked again, and the second set
-takes the same state, so a silent origin still costs
-one call and a dead one two, in total; an origin that answers costs up to twice
-the figures above, one name set after the other: three calls per set, so about
-6 × the 15 s budget (90 s) in all on a slow but answering origin. A set origin
-does not have is `absent`.
+A ref origin does not have is `absent`.
 
 **Unpushed blocks** — written by a producer that did not push, such as
-`sign.sh --no-push` — live in `refs/notes/attest-local/amont-attest` and
-`refs/notes/attest-local/amont-attest-inputs`. Origin never saw them and
+`sign.sh --no-push` — live in `refs/notes/greensummit-local/greensummit` and
+`refs/notes/greensummit-local/greensummit-inputs`. Origin never saw them and
 cannot revoke them, so a verifier reads them **only when asked**
 (`--include-local`), after the mirror, whether or not the mirror was judged,
 and names them `(unpushed)` in its reasons. `git update-ref -d
-refs/notes/attest-local/…` discards them. A blanket `git push origin
+refs/notes/greensummit-local/…` discards them. A blanket `git push origin
 'refs/notes/*'` would publish them; push the two refs by name instead.
 
 **Compatibility.** `input` lines are additive; the format token stays
-`amont-attest-v2`. A 1.3.x reader — `verify.sh` and git-attest 1.3.x, and
+`greensummit-v2`. A 1.3.x reader — `verify.sh` and greensummit 1.3.x, and
 amont's producer until it learns the marker — rejects a spec that uses `?` as
 a wildcard, so the whole spec is invalid there: it writes and accepts no
 fingerprint skips, and falls back to the tree. It can lose skips; it can
@@ -601,7 +550,7 @@ implementations.
 boundary like `allowed_signers`: a pull request can shrink a gate's declared
 inputs. That PR gets no skips itself, because the spec's oid is in every
 fingerprint, but every later PR that avoids the declared paths does. That is
-the two-step trust of editing a workflow file; guard `attest-inputs` the way
+the two-step trust of editing a workflow file; guard `greensummit-inputs` the way
 `allowed_signers` is guarded. (`allowed_signers` itself is read from disk,
 the spec from the tree — the inconsistency is noted rather than deepened.)
 
@@ -615,12 +564,12 @@ attestation can be withdrawn.
 ### Revoking
 
 - **Every fingerprint and canonical skip at once:** `git push origin
-  :refs/notes/amont-attest-inputs`. A 1.4.0 verifier deletes its mirror on
+  :refs/notes/greensummit-inputs`. A 1.4.0 verifier deletes its mirror on
   its next run and prints how to restore it; nothing is covered by
   fingerprint until producers sign again. Keep the old oid first —
-  `git ls-remote origin refs/notes/amont-attest-inputs` — and `git push
-  origin <oid>:refs/notes/amont-attest-inputs` restores it.
-- **Tree-keyed attestations too:** the same for `refs/notes/amont-attest`.
+  `git ls-remote origin refs/notes/greensummit-inputs` — and `git push
+  origin <oid>:refs/notes/greensummit-inputs` restores it.
+- **Tree-keyed attestations too:** the same for `refs/notes/greensummit`.
   Since 1.5.0 a producer files its block under `Kc` in the inputs ref as well,
   so deleting the tree ref alone leaves a plans-only skip standing: delete
   both to revoke everything.
@@ -630,7 +579,7 @@ attestation can be withdrawn.
   above; removal alone does not stop a pull request that restores the key.
 
 **Order matters.** Move every producer to 1.4.0, or delete its local
-`refs/notes/amont-attest[-inputs]`, before revoking: a 1.3.x `sign.sh`
+`refs/notes/greensummit[-inputs]`, before revoking: a 1.3.x `sign.sh`
 builds its push from origin's ref plus its whole local ref, and so
 re-publishes what was revoked. Two readers do not honour a revocation yet:
 amont's own verifier (`amont attest covered`), whose fetch never deletes a
@@ -651,7 +600,7 @@ dependency.
 
 The cost of that choice is **silence** — when a skip does not happen, nothing
 says why. Implementations must therefore report their reasoning on stderr
-(`verify.sh` does so by default; `git-attest explain` prints the trail).
+(`verify.sh` does so by default; `greensummit explain` prints the trail).
 
 ### Two things a verifier must not do
 
@@ -666,7 +615,7 @@ says why. Implementations must therefore report their reasoning on stderr
 ## Producing
 
 amont's pre-push hook is the reference producer for a laptop; `sign/sign.sh`
-in this repository (the `fredericrous/attest/sign` action) is the reference
+in this repository (the `greenharness/greensummit/sign` action) is the reference
 producer for CI. What a producer owes this format:
 
 - Sign only checks that actually **passed** — not warned, not skipped, not
@@ -694,8 +643,8 @@ producer for CI. What a producer owes this format:
   notes add -f` erases every other producer's block on that tree. Build what
   you push from origin's current ref plus your block, never from the local
   ref: that would re-publish a block origin revoked. A block you do not push
-  goes to `refs/notes/attest-local/…`, not to the mirror. Keep the
-  `amont <version>` line stable across runs — no run id, no timestamp — so a
+  goes to `refs/notes/greensummit-local/…`, not to the mirror. Keep the
+  `greengate <version>` line stable across runs — no run id, no timestamp — so a
   re-run recognises its own block as already present instead of appending it
   again. Use an ed25519 key: its signatures are deterministic, which is what
   makes that recognition exact.
