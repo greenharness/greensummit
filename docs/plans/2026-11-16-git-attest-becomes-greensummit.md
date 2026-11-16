@@ -327,5 +327,6 @@ only in history.
 - lang:rust: approve-with-changes → approve-with-changes; comments/tmp refs fixed; one-set loops deliberate (follow-up named); stdout→stderr line goes in the 2.0.0 CHANGELOG entry at release; 65k+71k.
 - platform: approve-with-changes → approve-with-changes; RELEASE bumped by prepare-release (1b); rollback in the plan only, deliberate: no outside consumers; 69k+72k.
 - unix approve-with-changes → approve (60k+68k); architect approve-with-changes → approve (53k+60k).
+- CI fix (Windows CRLF fixture, `.gitattributes`): delta implementation-review approve, lang:rust and platform approve-with-changes, nothing new; platform's rollback-in-a-shipped-file kept deliberate (owner's acceptance in the PR body).
 
 <!-- panel: repos=attest,amont,amont-agent,relais,grh,greenharness-skills,homelab,decisions adds=contract reviewers=backend,architect,po,lang:rust,lang:python,platform,tui,unix,codex body-sha=8688f3a08ef1 -->
