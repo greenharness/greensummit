@@ -1,0 +1,15 @@
+greensummit-v2
+tree ff1b18fcd47df10d45b9599d0ca2f01102f1bb9d
+gates pre-push-cargo-test ci-sign-test
+platform x86_64-linux
+input pre-push-cargo-test 77a1df8f970ce8db5cc2122a8692934e367d20b4
+input ci-sign-test 5415968f89e5af0d7a3d745897551d2668f957b7
+canon 01098c5249ca26e13847c804db7bef60bedd228e
+greengate attest-sign
+
+-----BEGIN SSH SIGNATURE-----
+U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgXgkkM9Ogr4XOuBmQ3r30uyjiP8
+aHsHBNrVvskb9KzzgAAAALZ3JlZW5zdW1taXQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3No
+LWVkMjU1MTkAAABAQIN6SIAbeGZPHl2VegFiM921cOhHFT1c47fvV3ekzXZk7H/RCkH6oX
+SPXsWLGvDtv5eoa4Fy8OYnAlYCLVMsCQ==
+-----END SSH SIGNATURE-----
