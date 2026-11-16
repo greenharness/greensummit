@@ -122,7 +122,7 @@ struct Report<'a> {
 impl Report<'_> {
     fn say(&self, line: &str) {
         if !self.o.quiet {
-            eprintln!("attest-sign: {line}");
+            eprintln!("greensummit sign: {line}");
         }
     }
 

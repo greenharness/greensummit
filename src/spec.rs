@@ -357,7 +357,8 @@ pub enum PlanExempt {
     /// `@plan-exempt off` in the tree's `greensummit-inputs`.
     Off,
     /// Only `set planExempt off` in the tree's `amont.conf`: off, and
-    /// deprecated (read until 2.0.0).
+    /// deprecated (read until the greensummit fleet census, Phase 5 of
+    /// docs/plans/2026-11-16-git-attest-becomes-greensummit.md).
     OffByAmontConf,
     /// A failing `ls-tree`, or a listed file whose blob cannot be read. Fails
     /// narrow: callers treat it as off; only the log differs.

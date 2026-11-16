@@ -249,7 +249,7 @@ remote_git() {
 
 # Where fetches land before they become the mirror: outside refs/notes/, one
 # directory per process id, so no notes push or pruning fetch touches them.
-TMP_NS=refs/attest-tmp/
+TMP_NS=refs/greensummit-tmp/
 tmp_ref() { printf '%s%s/%s' "$TMP_NS" "$$" "$1"; }
 
 # Remove the throwaways of runs killed before their cleanup — only those whose

@@ -369,7 +369,7 @@ sign "$WORK/key" --gates "ci-fmt ci-lint"
 expect "spec: optional paths absent" 0 "status=pushed|signed=true|pushed=true|gates=ci-fmt ci-lint|inputs=2/2"
 assert_eq "spec: ...reported on exactly one line" "$(printf '%s\n' "$ERR" | grep -c 'optional paths absent')" 1
 assert_eq "spec: ...each path once" "$(printf '%s\n' "$ERR" | grep 'optional paths absent')" \
-    "attest-sign: optional paths absent (their absence is bound): .cargo build.rs examples"
+    "greensummit sign: optional paths absent (their absence is bound): .cargo build.rs examples"
 move_tree "$R"; git -C "$R" push -q origin HEAD:refs/heads/main
 assert_eq "spec: ...and a clone covers by that fingerprint" "$(covered_in_clone)" "ci-fmt ci-lint"
 sign "$WORK/key" --gates ci-fmt --quiet
@@ -701,12 +701,12 @@ if [ "$OS" = windows ]; then
 else
 make_remote_repo_plain
 sign "$WORK/key" --gates ci-fmt > /dev/null 2>&1
-git -C "$R" update-ref refs/attest-tmp/4194305/amont-attest HEAD
-git -C "$R" update-ref "refs/attest-tmp/$$/amont-attest" HEAD
+git -C "$R" update-ref refs/greensummit-tmp/4194305/amont-attest HEAD
+git -C "$R" update-ref "refs/greensummit-tmp/$$/amont-attest" HEAD
 run_impl "$R"
 assert_eq "a dead run's throwaway is swept, a live one's kept" \
-    "$(git -C "$R" for-each-ref --format='%(refname)' refs/attest-tmp/ | tr '\n' ' ')" "refs/attest-tmp/$$/amont-attest "
-git -C "$R" update-ref -d "refs/attest-tmp/$$/amont-attest"
+    "$(git -C "$R" for-each-ref --format='%(refname)' refs/greensummit-tmp/ | tr '\n' ' ')" "refs/greensummit-tmp/$$/amont-attest "
+git -C "$R" update-ref -d "refs/greensummit-tmp/$$/amont-attest"
 fi
 
 # The two implementations say the same thing, line for line, about an origin

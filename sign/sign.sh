@@ -99,7 +99,7 @@ if [ -t 0 ]; then
     exit 2
 fi
 
-say() { [ -n "$quiet" ] || printf 'attest-sign: %s\n' "$1" >&2; }
+say() { [ -n "$quiet" ] || printf 'greensummit sign: %s\n' "$1" >&2; }
 
 # The ONE exit for every outcome: the five output lines, then 0.
 inputs_wanted=0; inputs_published=0

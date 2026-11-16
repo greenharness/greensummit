@@ -10,7 +10,7 @@ proves they agree. A third implementation should pass that suite.
 
 ## Names
 
-One name set (decisions ADR-0072, which hard-cuts the 1.x names with no
+One name set (decisions ADR-0073, which hard-cuts the 1.x names with no
 window):
 
 | | name |
@@ -21,7 +21,7 @@ window):
 | SSH namespace (`-n`) | `greensummit` |
 | input-key domain | `greensummit-input` |
 | canonical-key domain | `greensummit-canon` |
-| producer line | `greengate <producer>` |
+| producer line | `greengate <producer>` (the word `greengate` is part of the wire format, not the producing tool's name: renaming greengate would be a format change) |
 | unpushed blocks | `refs/notes/greensummit-local/greensummit[-inputs]` |
 
 - **One set, no fallback.** A verifier reads these names and no others. A note
@@ -492,7 +492,7 @@ repository it runs in as **origin's mirror**, never as a store of its own
 | there is no remote named `origin` | `no-origin` | is judged as it is — for fixtures and local use; CI always has an origin |
 
 **The fetch lands in a throwaway ref** (1.4.1), outside `refs/notes/` —
-`refs/attest-tmp/<pid>/<ref>` — and becomes the mirror by a local
+`refs/greensummit-tmp/<pid>/<ref>` — and becomes the mirror by a local
 compare-and-swap against what the mirror held before the fetch. The deadline
 kills git, and a fetch killed while writing the mirror itself would leave
 `<ref>.lock` behind, failing every later update of it; a kill can now only

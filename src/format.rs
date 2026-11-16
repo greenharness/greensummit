@@ -27,9 +27,8 @@ pub const NAMESPACE: &str = WRITE.namespace;
 
 /// One complete set of the names a signed attestation lives under: its header,
 /// the two notes refs, the SSH namespace, the two fingerprint domains and the
-/// payload's producer-line word. A note is read WHOLE under one set (SPEC.md,
-/// "Names"): its header says which, and the namespace, the domains and the
-/// inputs ref follow, so the two sets never mix inside one note.
+/// payload's producer-line word. Since 2.0.0 there is one set, [`SUMMIT`]
+/// (SPEC.md, "Names"): a note whose header is anything else is absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Names {
     /// First line of every payload.

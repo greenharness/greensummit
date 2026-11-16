@@ -4,7 +4,7 @@
 
 ## 2.0.0
 
-- **BREAKING: git-attest is renamed greensummit** (decisions ADR-0072).
+- **BREAKING: git-attest is renamed greensummit** (decisions ADR-0073).
   The crate, library and binary are `greensummit`, the repository is
   `greenharness/greensummit`, and the actions are
   `greenharness/greensummit@v2` and `greenharness/greensummit/sign@v2`. The

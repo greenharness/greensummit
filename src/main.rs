@@ -180,7 +180,7 @@ fn check_inputs(args: &[String]) -> u8 {
             2
         }
         Ok(f) if f.is_empty() => {
-            println!("check-greensummit-inputs: ok");
+            eprintln!("check-greensummit-inputs: ok");
             0
         }
         Ok(f) => {
@@ -424,9 +424,9 @@ mod tests {
 
     #[test]
     fn split_note_restores_the_signed_trailing_newline() {
-        let body = "amont-attest-v2\ntree abc\n\n-----BEGIN SSH SIGNATURE-----\nx";
+        let body = "greensummit-v2\ntree abc\n\n-----BEGIN SSH SIGNATURE-----\nx";
         let (payload, sig) = format::split_note(body).unwrap();
-        assert_eq!(payload, "amont-attest-v2\ntree abc\n");
+        assert_eq!(payload, "greensummit-v2\ntree abc\n");
         assert!(sig.starts_with("-----BEGIN SSH SIGNATURE-----"));
         assert!(format::split_note("no blank line here").is_none());
         assert!(format::split_note("payload\n\nnot a signature").is_none());

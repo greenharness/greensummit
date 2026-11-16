@@ -70,9 +70,9 @@ impl Verdict {
     }
 }
 
-/// Whether a notes ref holds a note for an object. Only `NoNote` sends a
-/// verifier to the next name set: a note that is there, readable or not,
-/// valid or not, is the one the object is judged by.
+/// Whether a notes ref holds a note for an object: a note that is there,
+/// readable or not, valid or not, is the one the object is judged by; only
+/// `NoNote` lets the lookup go on to the next ref (the inputs ref).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Lookup {
     NoNote,
@@ -269,7 +269,7 @@ impl Judge<'_> {
     /// notes of the `names` set and of no other: a block is checked under that
     /// set's header, namespace and (through the key it was found by) domain.
     /// Says whether the ref has a note for `object` at all, judged now, before,
-    /// or unreadable: the caller reads the next name set only on `NoNote`.
+    /// or unreadable: the caller looks further only on `NoNote`.
     fn judge(&mut self, names: &Names, notes_ref: &str, object: &str, at: &str) -> Lookup {
         let Some(listing) =
             git::stdout_in(&self.root, &["notes", "--ref", notes_ref, "list", object])
@@ -287,7 +287,7 @@ impl Judge<'_> {
         let Some(body) = git::stdout_in(&self.root, &["notes", "--ref", notes_ref, "show", object])
         else {
             // Listed but unreadable (a missing blob, say): a note is there, so
-            // the other name set is NOT read for this object.
+            // nothing else is read for this object.
             push_reason(
                 &mut self.trail,
                 format!("cannot read the note on {at} in refs/notes/{notes_ref}"),
@@ -332,7 +332,7 @@ impl Judge<'_> {
                 push_reason(
                     &mut self.trail,
                     format!(
-                        "note on {where_} is not {} — a newer producer, or the other name set, wrote it",
+                        "note on {where_} is not {} — a newer or an older producer wrote it",
                         names.format
                     ),
                 );
