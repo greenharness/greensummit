@@ -192,7 +192,7 @@ only in history.
 
 ## Phases
 
-- [ ] Phase 0 — ADR: `decisions/docs/adr/0072-git-attest-becomes-greensummit.md`,
+- [x] Phase 0 — ADR: `decisions/docs/adr/0073-git-attest-becomes-greensummit.md` (decisions#218),
   `decisions/docs/adr/HEADS.md`, `decisions/.adr.yaml`: replaces ADR-0071's
   `harness.bundle-names` (greensummit names the part; the signed-notes
   namespaces are greensummit's), supersedes ADR-0037's `ci.attestation-implementation` (greensummit is the one implementation; the amont-* wire names are no longer frozen and are no longer read), and amends `harness.renames` (a tool with no
@@ -304,6 +304,9 @@ only in history.
 - After any Phase 4 sweep PR merged: roll forward only (a fix release of greengate or greensummit); reverting a sweep PR restores `@v1` and the old namespace for that repo, which works only until Phase 5 archives `fredericrous/attest` (an archived repo's actions still resolve).
 
 ## Decision log
+- 2026-11-16 — the ADR is 0073, not 0072: the topo-spotter rename took 0072 the same hour. It also replaces `harness.standalone-tools`. `.adr.yaml` needed no change (no new key); `aval.pack` was regenerated (decisions#218).
+- 2026-11-16 — the CI signing key was rotated (`ci@greensummit.invalid`, a fresh key set only as the new repo's secret): the old `ci@attest` private key is not on this machine, only attest trusted it, and the hard cut leaves its old notes unread anyway.
+- 2026-11-16 — only `main`, the tags and the notes were pushed to the new repo; the 43 merged branches stayed behind.
 - 2026-11-16 — wire names hard-cut with no window, the person's choice at
   charting, against ADR-0071's ordered switch; recorded by ADR-0072.
 - 2026-11-16 — greensummit's single name set keeps `producer: "greengate"`:
