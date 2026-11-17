@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/greensummit
 repos: [attest, amont, amont-agent, relais, grh, greenharness-skills, homelab, decisions, activity-vision, agent-console, application-landscape, authelia-oidc-operator, aval, cluster-vision, customer-vision, ddns-updater-operator, duro-app, duro-design-system, duro-lexical-multi, duro-operator, governance-audit, grid, gtm-agent, homelab-preview-operator, kb-vision, social-planner, sre-agent, stealth-fetch, ticket-vision, trade-agents, vault-transit-unseal-operator, website-builder]
 adrs: [ADR-0071, ADR-0037, ADR-0069]
@@ -254,7 +254,7 @@ only in history.
   `duro-operator/.github/allowed_signers`; any `attest-inputs` moved;
   `AGENTS.md` regenerated where it names the tool (`greengate agents-md`);
   `.adr/packs/decisions.pack` refreshed by `aval add`.
-- [ ] Phase 5 — this machine and census: `gh repo archive fredericrous/attest` after a README commit pointing to greensummit, pushed to `git@github.com:fredericrous/attest.git` by explicit URL (origin already points to greensummit since Phase 1); `git -C ~/Developer/Perso/attest remote -v` shows greensummit,
+- [x] Phase 5 — this machine and census: `gh repo archive fredericrous/attest` after a README commit pointing to greensummit, pushed to `git@github.com:fredericrous/attest.git` by explicit URL (origin already points to greensummit since Phase 1); `git -C ~/Developer/Perso/attest remote -v` shows greensummit,
   `git -C ~/Developer/Perso/attest worktree list` shows the main checkout only
   (else `git -C ~/Developer/Perso/greensummit worktree repair` after the move),
   `mv ~/Developer/Perso/attest ~/Developer/Perso/greensummit` from another
@@ -298,6 +298,7 @@ only in history.
    `~/.claude` and `git config --global --list`,
    `git grep -nE 'git-attest|git_attest|fredericrous/attest|greengate-attest|amont-attest|attest-local/|attest-inputs'`
    minus history = 0 (allowlist named); `command -v git-attest` fails.
+   Observed 2026-11-17: 0 outside the allowlist on every repo's origin/main after homelab#1225 and agentic-platform#23 (`~/.local/state/gs-census/census.sh origin/main`, filtered by `allowlist.txt` there); `git config --global` 0; `~/.claude` config 0; `command -v git-attest` fails and `cargo install --list` has no git-attest. Worktrees: 23 carry old names, all HOLD (unpushed, open PR or uncommitted work). Details in the Decision log and decisions t07.
 
 ## Rollback
 
@@ -307,6 +308,7 @@ only in history.
 - After any Phase 4 sweep PR merged: roll forward only (a fix release of greengate or greensummit); reverting a sweep PR restores `@v1` and the old namespace for that repo, which works only until Phase 5 archives `fredericrous/attest` (an archived repo's actions still resolve).
 
 ## Decision log
+- 2026-11-17 — Phase 5 done. attest#50 (README pointer, CI 14/14 green, merged) pushed to `fredericrous/attest` through a temporary `legacy` remote, since the push review cannot read a bare URL; the remote was removed before the move. `fredericrous/attest` archived; `git ls-remote https://github.com/fredericrous/attest refs/tags/v1` still answers d0deec2. `~/Developer/Perso/attest` moved to `greensummit` with one worktree, origin greensummit. The census found two live hits outside the allowlist: agentic-platform, the 25th repo, missed by Phase 4 because its local checkout was behind origin (agentic-platform#23, CI green, merged), and the runner Dockerfile's dead amont block (homelab#1225: the block deleted, plus the three hadolint fixes from b31b214d4 with no rule suppressed; the 54 apt pins re-checked against today's trixie indexes, all still newest). Allowlist added to the 11-17 entry below: greengate's kept names (its own decision log), greenbelay's "not read" docs and tests, homelab's `attest-signer` role word, decisions' `.adr.yaml` key description and `docs/principles/ci-attested.md` prose, amont's `adr/` folder (history). Also checked: four Forgejo repos with no local clone (shallow clones, 0 hits), GitHub code search (one allowlisted fixture). The `gate_stamp::READ` and verify.rs one-element read follow-ups are no longer waiting on the census.
 - 2026-11-17 — Verification 5 observed; Phase 4 ticked. `greensummit: verified under greensummit` is printed only for a covering block, so it proves a non-empty `covered=` (the value goes to `$GITHUB_OUTPUT`, not the log). Three kinds of evidence:
   - **Post-merge main run's CI log** (7 GitHub repos): cluster-vision 31c86cac, authelia-oidc-operator 36e532b8, ddns-updater-operator 9ffa712f, homelab-preview-operator fb0d59b5, vault-transit-unseal-operator 001c395c, duro-app 8a7fc31a, duro-operator 4b649a64.
   - **Computed** with the released greensummit 2.0.0 (x86_64-apple-darwin, SHA256SUMS match) in a detached worktree of origin/main, using each workflow's `platform`/`anywhere` inputs (13 Forgejo repos). Calibrated first on 3 known CI outcomes (cluster-vision covered, greentopo empty, greenrack notes absent): 3 of 3 matched. Forgejo logs were unreadable from this Mac: kubectl and Python get "no route to host" while `/usr/bin/nc` connects (macOS Local Network privacy). Covered: sre-agent 241a017f, agent-console 18593e3d, customer-vision 6529195f, governance-audit 6322de5d, gtm-agent 3de76408, application-landscape 58cbeb67, grid 8fe07fc3, stealth-fetch bb6d7c94, website-builder eb8ab80c, duro-lexical-multi 6d43a7c9, kb-vision 3f31a2b2, social-planner 7aca6ae5, trade-agents 7c9c6edf.
