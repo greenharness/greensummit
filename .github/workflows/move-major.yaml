@@ -67,7 +67,7 @@ jobs:
           # exactly when somebody is already dealing with something else.
           # Updating a ref moves a pointer and never presents file contents,
           # so the guard does not apply. No checkout is needed either.
-          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" > /dev/null 2>&1; then
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" > /dev/null 2>&1; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" \
               -f sha="$sha" -F force=true > /dev/null
           else
@@ -76,7 +76,7 @@ jobs:
           fi
 
           # Verify the EFFECT, and that it is the RIGHT ref.
-          got=$(gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" --jq .object.sha)
+          got=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" --jq .object.sha)
           [ "$got" = "$sha" ] || {
             echo "::error::$major points at $got, expected $sha"; exit 1; }
           echo "$major -> $got ($TAG)"
