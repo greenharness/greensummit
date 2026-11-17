@@ -8,10 +8,10 @@
 # Written by the prepare-release workflow, committed in the release PR; never
 # by hand. Between releases it names the last release, whose binary main's
 # actions then run.
-version 1.10.0
-aarch64-apple-darwin       64026d436933c30ee67128578920e92c0c27d8b30fa8e6c8bcce7c91d71f7f13
-aarch64-unknown-linux-gnu  f61e329545552dcba1390acf94c325fa902edeade3a4f1543beda5a6ce53d79e
-x86_64-apple-darwin        1df31a7ebffc1b5cff558bbd5edc63dc9e98086903cebb02ff730d7bb3d5ea62
-x86_64-pc-windows-msvc     5c8cf24f8b2a3df30faf426eb5e1f085f18069f6e26540f18ee5ae4de782361d
-x86_64-unknown-linux-gnu   58aa7d3a39e1a88d011ba7f11d9dc690d6deace6ff6075fbda680d8fb5507a91
-x86_64-unknown-linux-musl  411bac0b4c127d4d2fe722a78ba331eb36d8314c5c37e638b2649848a149355f
+version 2.0.0
+aarch64-apple-darwin       8a4a521e878531bc5bd0779f331b4c6bb6b43cb9ceeacdfe8ecc8c10aa684e95
+aarch64-unknown-linux-gnu  c701c5ca47e17a2f2a5d3288320f72aa5be769d32662961cba287c18a4b3df65
+x86_64-apple-darwin        9f8f0b953a7d7f0d51acceaf2871aa7b558c41f4d0c75a52a9390a30a9eb4e24
+x86_64-pc-windows-msvc     2b6314b4be0ea8699aef9f5d2abdab093cd3245ce29795b0cec5178889ba2445
+x86_64-unknown-linux-gnu   a32b807ec2477de8a12f7bb75b766d205b151a955012c430cd01dec29a5a271b
+x86_64-unknown-linux-musl  bc0ea42f9fb779173044a6cc9854c0a04633d5da7904b084592925cff6e515eb

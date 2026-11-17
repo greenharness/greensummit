@@ -20,6 +20,8 @@
   outputs and their `--github-output` lines are removed; `format::SUMMIT` is
   the one set and `format::WRITE` equals it. `allowed_signers` lines must list
   `greensummit`.
+- **BREAKING: `greensummit check-inputs` prints its `ok` line on stderr**, not
+  stdout: the exit status is the answer, and stdout stays for data.
 - **BREAKING: environment variables** `ATTEST_*` are `GREENSUMMIT_*`
   (`ATTEST_GIT_ATTEST` is `GREENSUMMIT_BIN`); the secret name
   `ATTEST_SIGNING_KEY` is unchanged. Printed messages start `greensummit:`
