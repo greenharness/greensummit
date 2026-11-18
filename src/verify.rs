@@ -545,40 +545,38 @@ pub fn evaluate(
     let summit = (synced.notes, synced.inputs);
     loud.extend(synced.loud);
     let notes = Some(summit);
-    let states = [(SUMMIT, summit)];
-    for (names, (notes_mirror, inputs_mirror)) in &states {
-        for (r, st) in [
-            (names.notes_ref, *notes_mirror),
-            (names.inputs_ref, *inputs_mirror),
-        ] {
-            if let Some(why) = state_reason(r, st) {
-                push_reason(&mut trail, why);
-            }
-            if let Some(why) = lock_reason(&root, r) {
-                push_reason(&mut trail, why);
-            }
+    let names = &SUMMIT;
+    let (notes_mirror, inputs_mirror) = summit;
+    for (r, st) in [
+        (names.notes_ref, notes_mirror),
+        (names.inputs_ref, inputs_mirror),
+    ] {
+        if let Some(why) = state_reason(r, st) {
+            push_reason(&mut trail, why);
         }
-        if !include_local {
-            for r in [names.notes_ref, names.inputs_ref] {
-                let local = format!("refs/notes/{LOCAL_PREFIX}{r}");
-                // A ref that holds notes: `git notes remove` of the last one
-                // leaves the ref behind, and that is nothing to report.
-                if git::stdout_in(
-                    &root,
-                    &["notes", "--ref", &format!("{LOCAL_PREFIX}{r}"), "list"],
-                )
-                .is_some()
-                {
-                    push_reason(
-                        &mut trail,
-                        format!("{local} holds unpushed blocks, ignored without --include-local"),
-                    );
-                }
+        if let Some(why) = lock_reason(&root, r) {
+            push_reason(&mut trail, why);
+        }
+    }
+    if !include_local {
+        for r in [names.notes_ref, names.inputs_ref] {
+            let local = format!("refs/notes/{LOCAL_PREFIX}{r}");
+            // A ref that holds notes: `git notes remove` of the last one
+            // leaves the ref behind, and that is nothing to report.
+            if git::stdout_in(
+                &root,
+                &["notes", "--ref", &format!("{LOCAL_PREFIX}{r}"), "list"],
+            )
+            .is_some()
+            {
+                push_reason(
+                    &mut trail,
+                    format!("{local} holds unpushed blocks, ignored without --include-local"),
+                );
             }
         }
     }
-    // The refs each lookup reads, per name set and in order: the mirror, then
-    // the unpushed. A local ref pairs with its own set's names only.
+    // The refs each lookup reads, in order: the mirror, then the unpushed.
     let refs = |mirror: &str, st: Mirror| -> Vec<String> {
         let mut v = Vec::new();
         if st.judged() {
@@ -589,16 +587,8 @@ pub fn evaluate(
         }
         v
     };
-    let sets: Vec<(Names, Vec<String>, Vec<String>)> = states
-        .iter()
-        .map(|(names, (notes_mirror, inputs_mirror))| {
-            (
-                *names,
-                refs(names.notes_ref, *notes_mirror),
-                refs(names.inputs_ref, *inputs_mirror),
-            )
-        })
-        .collect();
+    let refs_main = refs(names.notes_ref, notes_mirror);
+    let refs_inputs = refs(names.inputs_ref, inputs_mirror);
 
     let Some(head_tree) = git::stdout_in(&root, &["rev-parse", "HEAD^{tree}"]) else {
         push_reason(
@@ -651,21 +641,15 @@ pub fn evaluate(
         ) else {
             continue;
         };
-        for (names, refs_main, _) in &sets {
-            let mut found = false;
-            for r in refs_main {
-                found |= Lookup::Found == judge.judge(names, r, &object, &label(r, candidate));
-            }
-            if found {
-                break;
-            }
+        for r in &refs_main {
+            judge.judge(names, r, &object, &label(r, candidate));
         }
     }
 
     // Then, lazily, the fingerprint-keyed notes: only for gates the spec
     // declares and nothing above covered. Each costs a few git processes and
     // one notes lookup; the common case (the tree matched) costs nothing.
-    // Each name set computes its own key and reads its own inputs ref.
+    // The key comes from the gate's fingerprint and is read in the inputs ref.
     let spec_gates: Vec<String> = judge
         .spec
         .as_ref()
@@ -683,17 +667,11 @@ pub fn evaluate(
             continue;
         };
         let at = format!("input {gate} {}", &fp[..12]);
-        for (names, _, refs_inputs) in &sets {
-            let Ok(k) = key_in(&judge.root, names, &gate, &fp) else {
-                continue;
-            };
-            let mut found = false;
-            for r in refs_inputs {
-                found |= Lookup::Found == judge.judge(names, r, &k, &label(r, &at));
-            }
-            if found {
-                break;
-            }
+        let Ok(k) = key_in(&judge.root, names, &gate, &fp) else {
+            continue;
+        };
+        for r in &refs_inputs {
+            judge.judge(names, r, &k, &label(r, &at));
         }
     }
 
@@ -702,19 +680,13 @@ pub fn evaluate(
     if !judge.exhausted {
         if let Some(c) = judge.canon_here() {
             let at = format!("canon {}", &c[..12]);
-            for (names, _, refs_inputs) in &sets {
-                let Ok(k) = canon_key_in(&judge.root, names, &c) else {
-                    continue;
-                };
+            if let Ok(k) = canon_key_in(&judge.root, names, &c) {
                 let mut found = false;
-                for r in refs_inputs {
+                for r in &refs_inputs {
                     found |= Lookup::Found == judge.judge(names, r, &k, &label(r, &at));
                 }
-                if found {
-                    if judge.canon_used {
-                        push_reason(&mut judge.trail, format!("canonical tree {c}, key {k}"));
-                    }
-                    break;
+                if found && judge.canon_used {
+                    push_reason(&mut judge.trail, format!("canonical tree {c}, key {k}"));
                 }
             }
         }
