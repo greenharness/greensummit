@@ -649,7 +649,7 @@ pub fn evaluate(
     // Then, lazily, the fingerprint-keyed notes: only for gates the spec
     // declares and nothing above covered. Each costs a few git processes and
     // one notes lookup; the common case (the tree matched) costs nothing.
-    // Each name set computes its own key and reads its own inputs ref.
+    // The key comes from the gate's fingerprint and is read in the inputs ref.
     let spec_gates: Vec<String> = judge
         .spec
         .as_ref()
